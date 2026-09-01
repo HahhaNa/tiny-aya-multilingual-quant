@@ -64,7 +64,7 @@ Cyrillic spends about 1.8 bytes per character and inflates the denominator. Only
 sentence denominator is free of both.
 
 This also bounds what bits-per-byte can claim, which is written up in
-[`METHODOLOGY.md`](METHODOLOGY.md#21-bpb-到底解決了什麼沒解決什麼對原計畫的修正).
+[`METHODOLOGY.md`](METHODOLOGY.md) section 2.1.
 Byte normalization removes the tokenizer dependence, which is its job, but bytes still carry the
 encoding cost of the script. Absolute BPB is therefore not a cross language quality scale. The
 dependent variable here is within language ΔBPB, where the encoding cost cancels.
