@@ -1,0 +1,1 @@
+{"arm": "A-bf16", "flores_code": "arb_Arab", "n_sents": 1012, "sum_nll_nats": 153739.1127, "sum_bytes": 211263, "sum_tokens": 35878, "bpb": 1.04987, "ppl_ref": 72.6064, "sec": 214.9}

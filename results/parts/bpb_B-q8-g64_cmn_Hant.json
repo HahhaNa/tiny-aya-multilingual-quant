@@ -1,0 +1,1 @@
+{"arm": "B-q8-g64", "flores_code": "cmn_Hant", "n_sents": 1012, "sum_nll_nats": 152524.9808, "sum_bytes": 116199, "sum_tokens": 33306, "bpb": 1.893708, "ppl_ref": 97.4661, "sec": 148.6}

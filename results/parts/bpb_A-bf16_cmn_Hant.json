@@ -1,0 +1,1 @@
+{"arm": "A-bf16", "flores_code": "cmn_Hant", "n_sents": 1012, "sum_nll_nats": 152439.8986, "sum_bytes": 116199, "sum_tokens": 33306, "bpb": 1.892652, "ppl_ref": 97.2174, "sec": 213.4}

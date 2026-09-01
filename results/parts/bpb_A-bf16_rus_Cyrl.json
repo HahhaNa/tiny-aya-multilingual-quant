@@ -1,0 +1,1 @@
+{"arm": "A-bf16", "flores_code": "rus_Cyrl", "n_sents": 1012, "sum_nll_nats": 132143.0979, "sum_bytes": 260342, "sum_tokens": 40480, "bpb": 0.732276, "ppl_ref": 26.1645, "sec": 209.9}

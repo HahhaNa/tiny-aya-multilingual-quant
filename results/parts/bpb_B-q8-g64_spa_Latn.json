@@ -1,0 +1,1 @@
+{"arm": "B-q8-g64", "flores_code": "spa_Latn", "n_sents": 1012, "sum_nll_nats": 139272.2822, "sum_bytes": 159885, "sum_tokens": 36067, "bpb": 1.2567, "ppl_ref": 47.536, "sec": 230.3}

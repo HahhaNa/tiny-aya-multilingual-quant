@@ -1,0 +1,1 @@
+{"arm": "A-bf16", "flores_code": "amh_Ethi", "n_sents": 1012, "sum_nll_nats": 170827.5494, "sum_bytes": 225450, "sum_tokens": 57049, "bpb": 1.093156, "ppl_ref": 19.9734, "sec": 369.3}
