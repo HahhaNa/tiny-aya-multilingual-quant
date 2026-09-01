@@ -1,0 +1,8 @@
+models/
+.venv/
+outputs/*.jsonl
+__pycache__/
+*.pyc
+logs/
+.DS_Store
+data/flores*
