@@ -1,46 +1,66 @@
-# MLX 支不支援 Tiny Aya 的架構
+# Does MLX support the Tiny Aya architecture
 
-**結論：支援，不需備援方案**
+**Conclusion: yes, natively. No fallback needed.**
 
-## 怎麼確認的
-`CohereLabs/tiny-aya-global` 是 gated（`gated=auto`），直接抓 config.json 得到 403。
-改從**未受限的 MLX 鏡像** `mlx-community/tiny-aya-global-8bit-mlx` 取得同一份 config —
-該 repo 存在本身就是 MLX 可跑此架構的證據。
+This was the first thing to settle, because if MLX could not run the architecture the whole plan would
+have had to change on day one.
 
-## config.json 關鍵欄位
-| 欄位 | 值 | 意義 |
-|---|---|---|
-| `model_type` | `cohere2` | **在 mlx-lm 0.31.3 的 118 個支援架構清單內** |
-| `architectures` | `Cohere2ForCausalLM` | |
-| `vocab_size` × `hidden_size` | 262144 × 2048 | embedding = 536.9M 參數 = **全模型 16.0%** |
-| `num_hidden_layers` | 36 | body = 2.812B → 總計 3.349B ≈ 3.35B ✓ |
-| GQA | 16 q-head / 4 kv-head, head_dim 128 | KV cache 只有 MHA 的 1/4 |
-| `layer_types` | 3 × sliding(4096) + 1 × full，重複 9 次 | 與 Command R7B 同構，正是 `cohere2` |
-| `max_position_embeddings` | **8192** | 鏡像 repo 寫 500000，**原 repo 是 8192**——不要信鏡像的 config |
-| `tie_word_embeddings` | 未列出 → **實測確認 True** | `convert/check_tie.py` 兩路驗證：transformers 解析為 True，且 290 個 tensor 中**不存在 `lm_head.weight`**。arm E 的 predicate 只需匹配 `embed_tokens`，一次同時保護輸入與輸出端 |
+## How it was established
 
-## 推導出的權重預算（`analysis/param_budget.py`，與計畫預估完全吻合）
-| arm | bits/param | GB | vs C |
-|---|---|---|---|
-| A-bf16 | 16.00 | 6.70 | 3.56× |
-| B-q8-g64 | 8.50 | 3.56 | 1.89× |
-| C-q4-g64 | 4.50 | 1.88 | 1.00× |
-| D-q4-g32 | 5.00 | 2.09 | 1.11× |
-| E-q4-emb8 | 5.14 | 2.15 | **1.14×** |
+`CohereLabs/tiny-aya-global` is gated, so fetching `config.json` directly returns 403. The config was
+read instead from the **ungated MLX mirror** `mlx-community/tiny-aya-global-8bit-mlx`. The existence of
+that repository is itself evidence that MLX can run the architecture.
 
-arm E 的「只多 14% 記憶體」是算出來的，不是引用的。
+The gate was accepted shortly afterwards and the table below uses the original repository's values.
 
-## 授權（已解除，2026-09-01）
-`gated=auto`，網頁按下接受後立即生效。原 repo 的 config 已可直接取得，上表已改用原 repo 的值。
+## Key fields
 
-## 曾經的 blocker（保留紀錄）
-`CohereLabs/tiny-aya-global` 需在網頁按下接受 CC-BY-NC。`gated=auto` = 按完立即生效，不需等審核。
-未解前無法產生 **arm A（bf16 基線）**，而所有 Δ 都相對它 → T2 之後全部卡住。
-（8-bit 鏡像不能當基線：它已經是被量化過的模型。）
+| Field | Value | Why it matters |
+| --- | --- | --- |
+| `model_type` | `cohere2` | **Present in the 118 architectures mlx-lm 0.31.3 supports** |
+| `architectures` | `Cohere2ForCausalLM` | Same family as Command R7B |
+| `vocab_size` x `hidden_size` | 262144 x 2048 | Embedding is 536.9M parameters, **16.0% of the model** |
+| `num_hidden_layers` | 36 | Body is 2.812B, total 3.349B, matching the stated 3.35B |
+| GQA | 16 query heads, 4 KV heads, head_dim 128 | KV cache is a quarter of what MHA would need |
+| `layer_types` | 3 sliding (4096) then 1 full, repeated 9 times | The `cohere2` pattern |
+| `max_position_embeddings` | **8192** | The mirror says 500000. **The original says 8192** |
+| `tie_word_embeddings` | Absent from config, **verified True** | See below |
 
-**教訓**：鏡像 repo 可以用來回答「MLX 支不支援」，但**不能用來抄 config 數值**——`max_position_embeddings` 就對不上。
+### On tied embeddings
 
-## 順手發現：作品集的相對定位
-`mlx-community` 已有 `tiny-aya-global-8bit-mlx` 與 `tiny-aya-fire-4bit`。
-也就是**「把它量化」本身沒有新意**——新意在多語言不對稱的量測、arm E 的緩解、以及無風扇機器的量測協定。
-這反而讓論述更聚焦：你不是在做轉檔，你是在做評測。
+The field is not in `config.json`, so it had to be established rather than assumed, because arm E
+depends on it. `convert/check_tie.py` checks it two independent ways: transformers resolves the config
+default to `True`, and **none of the 290 tensors in the checkpoint is `lm_head.weight`**. MLX's cohere2
+implementation computes the output as `self.model.embed_tokens.as_linear(out)`, so the output layer is
+literally the embedding table.
+
+The consequence is that arm E's quantization predicate only has to match `embed_tokens`. One module,
+both ends protected.
+
+## Derived weight budget
+
+`analysis/param_budget.py` derives these from the config alone, with no model loaded.
+
+| Arm | Bits per weight | GB | Against C |
+| --- | --- | --- | --- |
+| A-bf16 | 16.00 | 6.70 | 3.56x |
+| B-q8-g64 | 8.50 | 3.56 | 1.89x |
+| C-q4-g64 | 4.50 | 1.88 | 1.00x |
+| D-q4-g32 | 5.00 | 2.09 | 1.11x |
+| E-q4-emb8 | 5.14 | 2.15 | **1.14x** |
+
+Arm E's "only 14% more memory" is a derived number, not a quoted one. After conversion, mlx-lm reported
+5.141 bits per weight for arm E and every arm landed within 1.5% of its predicted size on disk.
+
+## A lesson about mirrors
+
+A mirror repository is good enough to answer "does the framework support this architecture". It is not
+good enough to read configuration values from: `max_position_embeddings` differs between the mirror and
+the original.
+
+## Where this leaves the project
+
+`mlx-community` already publishes 8-bit and 4-bit conversions of Tiny Aya. **Quantizing this model is
+not novel.** Whatever this project contributes has to come from the cross-language evaluation, the
+mitigation arm, and the measurement protocol, which is a useful thing to know on day one rather than
+day fourteen.

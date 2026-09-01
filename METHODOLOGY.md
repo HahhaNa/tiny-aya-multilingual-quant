@@ -1,159 +1,175 @@
-# METHODOLOGY
+# Methodology
 
-## 1. 速度量測協定
+## 1. Speed measurement
 
-### 1.1 為什麼需要協定：一次真實的失敗示範
+### 1.1 Why a protocol is needed: a real failure, shown
 
-Day 2 的 smoke test 是**循序**跑的（A → B → C → D → E，每 arm 三次生成，中間無冷卻）。
-把實測中位數對照從記憶體頻寬推出的 roofline 上限（M3 約 100 GB/s）：
+The day 2 smoke test was run **sequentially**, A through E, three generations per arm, no cooldown.
+Against the roofline implied by memory bandwidth (about 100 GB/s on this M3):
 
-| arm | 權重 GB | roofline tok/s | 實測中位 | 效率 | 純頻寬外推（錨定 C）| 落差 |
-|---|---|---|---|---|---|---|
+| Arm | Weights, GB | Roofline tok/s | Measured median | Efficiency | Bandwidth extrapolation anchored on C | Shortfall |
+| --- | --- | --- | --- | --- | --- | --- |
 | A-bf16 | 6.72 | 14.9 | 11.8 | **79%** | 8.3 | +43% |
 | B-q8-g64 | 3.58 | 27.9 | 20.1 | **72%** | 15.5 | +29% |
 | C-q4-g64 | 1.91 | 52.4 | 29.1 | **56%** | 29.1 | 0% |
 | D-q4-g32 | 2.11 | 47.4 | 24.2 | **51%** | 26.3 | −8% |
 | E-q4-emb8 | 2.17 | 46.1 | 22.6 | **49%** | 25.6 | −12% |
 
-效率單調下降 79% → 49%，**且順序與執行順序完全一致**。
+Efficiency falls monotonically from 79% to 49%, **in exactly the order the arms were executed**.
 
-有兩個互相競爭的解釋：
+Two explanations compete:
 
-1. **熱節流**：M3 Air 無風扇，E 跑在機器最熱的時候
-2. **dequant 開銷**：bf16 不需要反量化，4-bit 需要；低位元的 kernel 效率天生較低
+1. **Thermal throttling.** The M3 Air has no fan, and arm E ran when the machine was hottest.
+2. **Dequantization overhead.** bf16 needs no dequantization and 4-bit does, so low-bit kernels have
+   lower efficiency by construction.
 
-**循序資料無法分離這兩者**——它們被執行順序完全混淆了。
-這就是本研究速度量測必須交錯的理由，而這張表是它的直接證據。
+**Sequential data cannot separate them.** They are perfectly confounded with execution order. That is
+why the speed measurement in this project is interleaved, and this table is the evidence for it.
 
-> 注意：此表來自 smoke test，**不是研究結果**，不進 `results/`。
-> 它的用途是說明協定的必要性。
+> This comes from a smoke test. It is **not a study result** and does not live in `results/`. Its only
+> job is to justify the protocol.
 
-### 1.2 正式協定（T6）
+### 1.2 The protocol
 
-- **交錯**：5 arm × 3 種 prompt 長度 × 3 重複 = 45 次，用 `seed=1337` 洗牌，
-  執行順序寫入 `bench/run_order.csv` 並隨結果一起提交。`order_idx` 進入結果表，
-  事後可檢定「順序」是否仍有殘餘效應
-- **冷卻**：每次量測後強制 `sleep 90`
-- **環境**：接電源、關閉低耗電模式、關閉其他 app、`sudo sysctl iogpu.wired_limit_mb=13000`
-- **熱記錄**：背景 `powermetrics --samplers cpu_power,gpu_power,thermal -i 1000`，事後對照
-- **統計量**：報**中位數與 IQR**，不報平均（熱節流造成單邊長尾）
-- **跨語言**：tok/s 不可跨語言比較，須以 fertility 換算 chars/s
+- **Interleaving.** 5 arms x 3 prompt lengths x 3 repeats, 45 runs, shuffled under `seed=1337`. The
+  order is written to `bench/run_order.csv` and committed with the results. `order_idx` is carried into
+  the results table so the residual order effect can be tested afterwards.
+- **Cooldown.** A forced 90 second sleep after every run.
+- **Environment.** On mains power, low power mode off, other applications closed,
+  `sudo sysctl iogpu.wired_limit_mb=13000`.
+- **Thermal record.** `powermetrics --samplers cpu_power,gpu_power,thermal -i 1000` in the background,
+  reconciled afterwards.
+- **Statistics.** Median and IQR, never the mean, because throttling produces a one-sided tail.
+- **Across languages.** tok/s is not comparable between languages and must be converted using fertility.
 
-### 1.3 事後檢定（協定是否奏效）
+### 1.3 Testing whether the protocol worked
 
-交錯之後，對 `results/speed.csv` 跑 `decode_tps ~ arm + order_idx`。
-`order_idx` 的係數若仍顯著，代表 90 秒冷卻不足，需延長並重跑。
-**這個檢定要報出來，不論結果**。
+After interleaving, fit `decode_tps ~ arm + order_idx` on `results/speed.csv`. If the `order_idx`
+coefficient is still significant, 90 seconds of cooldown was not enough and the measurement has to be
+rerun with a longer one. **This test gets reported either way.**
 
----
+### 1.4 Converting speed across languages
 
-## 1.4 跨語言的速度換算（修正原計畫）
+The original plan said to convert tok/s into characters per second. **Characters per second is biased
+too.** A Han character carries far more than a Latin letter, so characters per second systematically
+understates languages written in dense scripts.
 
-原計畫寫「tok/s 不可跨語言比較，要換算成 chars/s」。**chars/s 同樣有偏誤**：
-一個漢字承載的資訊遠多於一個拉丁字母，所以 chars/s 會系統性低估漢字類語言的實際產出。
-
-正確做法是用**平行語料的 token 比值**（見 §4）換算成「英語等效內容量／秒」：
+The correct conversion uses the parallel-corpus token ratio from section 4:
 
 ```
 content_per_s(L) = decode_tps(L) / tok_ratio_vs_eng(L)
 ```
 
-`tok_ratio_vs_eng` 已寫入 `data/lang_meta.csv`。chars/s 仍會記錄，但僅作對照。
+`tok_ratio_vs_eng` is stored in `data/lang_meta.csv`. Characters per second is still recorded, as a
+secondary figure.
 
 ---
 
-## 2. 為什麼是 bits-per-byte
+## 2. Why bits per byte
 
-`BPB = (Σ NLL_nats / ln 2) / Σ len(utf8_bytes)`
+```
+BPB = (Σ NLL_nats / ln 2) / Σ len(utf8_bytes)
+```
 
-perplexity 的分母是 token 數，而 token 數受 tokenizer 影響：Burmese 的同一句話可能被切成
-英語三倍的 token，每個 token 因此更好猜，perplexity 假性偏低。改用 UTF-8 位元組作分母後，
-分母與 tokenizer 無關，跨語言才可直接比較。
+Perplexity has a token denominator, and token counts depend on the tokenizer. The same sentence is cut
+into five times as many tokens in Burmese, which makes each token easier to predict and pushes
+perplexity down artificially. With a UTF-8 byte denominator the measure no longer depends on the
+tokenizer.
 
-perplexity 仍會記錄，但**僅供同語言內對照**，不用於跨語言比較（見 PREREGISTRATION §6）。
+Perplexity is still recorded, but **only as a within-language reference**, never for cross-language
+comparison.
 
-### 2.1 BPB 到底解決了什麼、沒解決什麼（對原計畫的修正）
+### 2.1 What BPB fixes, and what it does not
 
-原計畫寫「分母是位元組，跟 tokenizer 無關，跨語言才能直接比」。**前半對，後半過度宣稱。**
+The original plan said the byte denominator makes the measure "tokenizer independent, so languages can
+be compared directly". **The first half is right and the second overclaims.**
 
-位元組分母確實移除了 **tokenizer 依賴**，這是它的目的。但位元組本身帶有**文字系統的編碼成本**：
-拉丁字母 1 位元組／字元，西里爾與阿拉伯約 1.8，天城文／吉茲／緬甸文約 2.6–2.9（實測見 §4）。
-同樣的語意內容在不同文字系統下橫跨的位元組數差三倍，所以**絕對 BPB 不是跨語言的品質尺規**。
+Byte normalization does remove the **tokenizer dependence**, which is its purpose. But bytes carry the
+**encoding cost of the script**: Latin runs at 1 byte per character, Cyrillic and Arabic at about 1.8,
+Devanagari, Ge'ez and Myanmar at 2.6 to 2.9 (measured in section 4). The same meaning spans three times
+as many bytes depending on the script, so **absolute BPB is not a cross-language quality scale**.
 
-本研究的應變數是 **ΔBPB（同一語言內，bf16 → 量化）**，編碼成本在相減時抵消，
-因此結論不受此影響。報告中不會宣稱「語言 A 的絕對 BPB 低於語言 B 所以更好」。
+The dependent variable in this study is **within-language ΔBPB**, from bf16 to a quantized arm, where
+the encoding cost cancels in the subtraction. No claim of the form "language A has lower absolute BPB
+than language B" appears in the results.
 
-### 2.2 批次化的數值噪音地板（T5 執行前量測）
+### 2.2 The numerical noise floor of batching, measured before the run
 
-BPB 評測用動態批次（`MAX_BATCH_TOKENS=1024`）加速。批次會改變 matmul 的 tiling，
-進而改變 bf16 的累加順序，因此結果與逐句計算不完全相同。**這需要先量清楚再跑，不能假設可忽略。**
+The likelihood evaluation batches dynamically at `MAX_BATCH_TOKENS=1024`. Batching changes matmul
+tiling, which changes bf16 accumulation order, so batched and unbatched results are not identical.
+**This has to be measured before trusting the run, not assumed negligible.**
 
-**先排除 masking bug**。若右側 padding 洩漏進因果注意力，誤差應隨 padding 量單調上升。實測：
+**First, rule out a masking bug.** If right-side padding leaked into causal attention, error would grow
+monotonically with the amount of padding. Measured:
 
-| 設定 | 相對差（對單條無 padding）|
-|---|---|
-| 單條 + 10 padding | 1.64e-03 |
-| 單條 + 50 padding | 5.03e-03 |
-| 單條 + 250 padding | **6.35e-04**（更小，非單調）|
-| **兩條相同序列、零 padding** | **1.64e-03**（與 10 padding 同量級）|
-| 同一計算重跑兩次 | **完全一致** |
+| Configuration | Relative difference against one sequence with no padding |
+| --- | --- |
+| One sequence + 10 padding | 1.64e-03 |
+| One sequence + 50 padding | 5.03e-03 |
+| One sequence + 250 padding | **6.35e-04**, smaller, so not monotonic |
+| **Two identical sequences, zero padding** | **1.64e-03**, same magnitude as 10 padding |
+| The same computation run twice | **Bit identical** |
 
-零 padding 的批次已產生同量級差異，且 padding 量與誤差非單調 → **不是洩漏，是 tiling**。
-計算本身是決定性的。
+A zero-padding batch already produces a difference of the same size, and error is not monotonic in
+padding. That is tiling, not a leak. The computation itself is deterministic.
 
-**聚合後的噪音地板**（arm C，eng_Latn，300 句）：
+**Then measure the floor after aggregation** (arm C, English, 300 sentences):
 
-| MAX_BATCH_TOKENS | BPB | 相對差 |
-|---|---|---|
-| 1024 | 1.368635 | 基準 |
+| MAX_BATCH_TOKENS | BPB | Relative difference |
+| --- | --- | --- |
+| 1024 | 1.368635 | reference |
 | 512 | 1.368512 | 9.0e-05 |
 | 256 | 1.368615 | 1.5e-05 |
-| 1（完全不批次）| 1.367280 | **9.9e-04** |
+| 1, no batching at all | 1.367280 | **9.9e-04** |
 
-單句層級的 5e-03 在千句聚合後降到約 **1e-03（0.1%）**。
-量化造成的 ΔBPB 預期在 1–10% 量級，訊噪比 10–100 倍，因此批次化安全。
+The 5e-03 seen per sequence falls to about **1e-03, or 0.1%,** once aggregated over a thousand
+sentences. Quantization is expected to move BPB by 1 to 10%, so the signal-to-noise ratio is 10 to 100
+and batching is safe.
 
-**額外的保護**：批次組成只取決於 tokenizer 與句長排序，五個 arm 完全相同，
-所以系統性成分在 ΔBPB 相減時抵消。
+**An additional protection:** batch composition depends only on the tokenizer and the length sort, both
+identical across all five arms, so the systematic component cancels in ΔBPB.
 
-**報告要求**：任何小於 0.3% 的 ΔBPB 一律視為在噪音地板內，不得詮釋為效應。
-
----
-
-## 4. tokenizer fertility 的三種分母
-
-FLORES+ 是平行語料，同一句話有十個語言版本。這讓 fertility 有三種算法，
-而**三種給出互相矛盾的排名**（`figures/02_fertility.png` 右圖）：
-
-| 分母 | 混淆來源 | 症狀 |
-|---|---|---|
-| 每字元 | 字元的資訊密度 | 繁體中文排第二糟，但它是高資源語言且 tokenizer 對它其實很有效率 |
-| 每 UTF-8 位元組 | 文字系統的編碼成本 | 俄語排最後（比英語還低），因為西里爾字母每字元約 1.8 位元組把分母撐大 |
-| **每平行句** | **無** | 同一句意思需要幾個 token，直接可比 |
-
-實測（以英語為 1.0，中位數）：緬甸語 5.04×、印地語 3.35×、約魯巴語 2.12×、阿姆哈拉語 2.08×、
-斯瓦希里語 1.46×、俄語 1.46×、西班牙語 1.31×、阿拉伯語 1.31×、繁體中文 1.19×。
-
-**兩個要點**：
-
-1. **在同樣的 tok/s 下，緬甸語使用者拿到的實際內容約為英語使用者的五分之一。**
-   這層不平等在量化進場之前就存在。本研究的論點因此是
-   「量化在一個既有的稅上疊了第二層」，而非「量化製造了不平等」。
-2. **fertility 不等於資源等級。** 繁體中文（高資源）在每字元尺度看似最糟，
-   斯瓦希里語（低資源）卻和俄語相同。這正是 2×2 語言設計要分離的東西，
-   也是迴歸中 `fertility` 必須與 `tier` 並列為自變數、而非互相替代的理由。
+**Reporting rule, fixed in advance:** any ΔBPB smaller than 0.3% is inside the noise floor and must not
+be interpreted as an effect.
 
 ---
 
-## 3. 量化配置的位元開銷
+## 3. Bit overhead of the quantization configurations
 
-affine 量化把每 `group_size` 個權重存成整數，另配一個 scale 與一個 bias（各 16-bit），
-因此每權重的有效位元為 `bits + 32/group_size`：
+Affine quantization stores every `group_size` weights as integers plus one scale and one bias, each
+16-bit, so the effective bits per weight is `bits + 32/group_size`:
 
 - 4-bit, g=64 → 4.500
 - 4-bit, g=32 → 5.000
 - 8-bit, g=64 → 8.500
-- arm E（body 4-bit g64 + embedding 8-bit g64）→ **5.141**
+- Arm E, 4-bit body at g=64 with 8-bit embedding → **5.141**
 
-上述由 `analysis/param_budget.py` 手推，並經 mlx-lm 轉檔時回報的 bits-per-weight 驗證，
-五個 arm 的實際磁碟大小與預估誤差皆 <1.5%。
+These were derived by hand in `analysis/param_budget.py` and confirmed against the bits-per-weight
+mlx-lm reports at conversion time. All five arms land within 1.5% of the predicted size on disk.
+
+---
+
+## 4. Three denominators for tokenizer fertility
+
+FLORES+ is a parallel corpus, so the same sentence exists in all ten languages. That gives fertility
+three possible denominators, and **they disagree with each other** (right panel of
+`figures/02_fertility.png`):
+
+| Denominator | Source of bias | Symptom |
+| --- | --- | --- |
+| Per character | Information density of a character | Traditional Chinese ranks second worst, although it is high resource and the tokenizer handles it efficiently |
+| Per UTF-8 byte | Encoding cost of the script | Russian ranks last, below English, because Cyrillic spends about 1.8 bytes per character and inflates the denominator |
+| **Per parallel sentence** | **None** | How many tokens the same meaning costs, directly comparable |
+
+Measured, English as 1.0, median: Burmese 5.04x, Hindi 3.35x, Yoruba 2.12x, Amharic 2.08x,
+Swahili 1.46x, Russian 1.46x, Spanish 1.31x, Arabic 1.31x, Traditional Chinese 1.19x.
+
+Two consequences:
+
+1. **At an equal decode rate, a Burmese user receives about a fifth of the content an English user
+   does.** That inequality exists before quantization enters. The argument of this project is therefore
+   that quantization adds a second layer to an existing tax, not that it creates the inequality.
+2. **Fertility is not resource level.** Traditional Chinese is high resource and looks expensive per
+   character; Swahili is low resource and costs the same as Russian. That is exactly what the 2x2
+   language design exists to separate, and it is why `fertility` and `tier` both appear in the
+   regression rather than standing in for one another.

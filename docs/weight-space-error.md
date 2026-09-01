@@ -1,80 +1,81 @@
-# 權重空間的量化誤差是均勻的
+# Quantization error in weight space is uniform
 
-**一句話**：均勻 4-bit 量化在權重空間**沒有**偏袒任何語言或任何頻率的 token。
+**In one line:** uniform 4-bit quantization does not disadvantage any language or any frequency of
+token, measured directly in the weights.
 
-## 1. 主要結果
+## The result
 
-arm A（bf16）對 arm C（4-bit, g=64），逐 token 比較 embedding 的相對誤差 `|ΔE|/|E|`：
+Arm A (bf16) against arm C (4-bit, g=64), relative error `|ΔE|/|E|` per embedding row:
 
-| 切法 | 結果 |
-|---|---|
-| 全詞彙表中位 | 0.0929 |
-| 語料內 token（32,088 個）| 0.0928 |
-| 語料外 token（真正的低頻長尾）| 0.0929 |
-| 高資源 / 中 / 低資源 | 0.0930 / 0.0918 / 0.0925 |
-| `log(頻率)` 與相對誤差的相關 | **−0.03** |
+| Slice | Median relative error |
+| --- | --- |
+| Whole vocabulary | 0.0929 |
+| Tokens seen in the corpus (32,088) | 0.0928 |
+| Tokens never seen, the genuine low frequency tail | 0.0929 |
+| High / mid / low resource tier | 0.0930 / 0.0918 / 0.0925 |
+| Correlation of `log(frequency)` with error | **−0.03** |
 
-分散程度：90% 的 token 落在 0.0888–0.1006，區間寬度是中位數的 12.7%。
-**tier 之間的最大差距（0.0014）只有這個自然離散度的 12%。**
+Ninety percent of tokens fall between 0.0888 and 0.1006, a band 12.7% as wide as the median. **The
+largest gap between tiers, 0.0014, is 12% of that band.**
 
-這是一個**窄信賴區間的乾淨空結果**，不是檢定力不足。
+This is a tight null, not an underpowered one.
 
-## 2. 為什麼會這樣（機制）
+## Why
 
-affine 量化的 scale 由**每組 64 個權重的 min/max** 決定，所以它是**尺度不變**的。
-相對誤差只取決於組內分布的**形狀**，不取決於量級。embedding 的每一列分布形狀相近，
-於是每一列拿到幾乎相同的相對誤差。4-bit（16 格）對近高斯分布的相對 RMS 誤差約 9%，
-實測 0.093 完全吻合。
+Affine quantization takes its scale from the **min and max of each group of 64 weights**, which makes it
+scale invariant. Relative error depends on the shape of the distribution inside a group, not on its
+magnitude. Embedding rows have similar distribution shapes, so they receive nearly identical relative
+error. Four bits, sixteen levels, applied to a roughly Gaussian group gives about 9% relative RMS error,
+and 0.093 is exactly that.
 
-**「稀有 token 的權重會被量化得比較差」這個直覺是錯的**，因為 per-group 縮放已經自動適應了每一列。
+**The intuition that rare tokens get quantized worse is wrong**, because per-group scaling has already
+adapted to every row.
 
-## 3. 這對 H2 的意義（精確版，不要過度宣稱）
+## What this does and does not say about the mitigation hypothesis
 
-H2 原文：「退化主要來自 embedding／lm_head 的低位元化，而非 transformer block。」
+H2 as registered: degradation comes mainly from low-bit quantization of the embedding and output layer
+rather than the transformer blocks.
 
-- **被否證的**：支撐 H2 的那個**權重空間前提** —— 低資源／低頻 token 的 embedding 量化誤差較大。
-  它不成立，而且反方向的證據更強（見下）。
-- **仍然成立的**：H2 本身是關於**行為退化的歸因**，只能由 arm E vs arm C 的行為差異檢定。
-  arm E 把 embedding 誤差從 0.094 降到約 1/16，若低資源語言對 embedding 擾動更敏感
-  （原因可能與權重誤差大小無關），arm E 仍可能有效。**arm E 照跑，不砍。**
-- **H1 完全不受影響**。行為層的不對稱仍待 T5／T8 檢定。
+- **Falsified:** the **weight-space premise** behind H2, that low resource and low frequency tokens
+  carry larger embedding quantization error. They do not, and the evidence runs the other way.
+- **Still standing:** H2 itself is a claim about **behavioural** degradation and can only be tested by
+  arm E against arm C. Arm E reduces embedding error by roughly sixteen times. If low resource languages
+  turn out to be more sensitive to embedding perturbation for reasons unrelated to the size of that
+  perturbation, arm E can still work. **Arm E is not cut.**
+- **Untouched:** H1. Behavioural asymmetry is still an open question.
 
-### 反方向的證據
-逐語言看**絕對** MSE（單語專屬 token）：英語最高（1.69e-05，row norm 1.89），
-阿姆哈拉語最低（5.20e-06，row norm 1.13）。因為相對誤差固定，絕對擾動就由 row norm 決定，
-而**英語 token 的 embedding 範數最大**。若只看權重空間，受擾動最多的是英語。
+### The evidence running the other way
 
-## 4. 順手發現：GQA 的 KV 投影才是誤差最高的地方
+Per-language absolute MSE, restricted to tokens that occur in essentially one language: English is
+highest at 1.69e-05 with a row norm of 1.89, Amharic lowest at 5.20e-06 with a row norm of 1.13. Since
+relative error is fixed, absolute perturbation is set by row norm, and **English tokens have the largest
+embedding norms in this vocabulary**. Judged in weight space alone, English is the language perturbed
+most.
 
-| 模組 | 第 0–17 層中位 | 第 18–35 層中位 | 最大值 | 出現層 |
-|---|---|---|---|---|
+## An aside: the GQA projections are the real hotspot
+
+| Module | Median, layers 0 to 17 | Median, layers 18 to 35 | Max | At layer |
+| --- | --- | --- | --- | --- |
 | `v_proj` | 0.0937 | **0.1020** | **0.1245** | 27 |
 | `k_proj` | 0.0969 | 0.0982 | 0.1112 | 31 |
 | `q_proj` | 0.0946 | 0.0933 | 0.1013 | 7 |
 | `o_proj` | 0.0916 | 0.0917 | 0.0923 | 5 |
-| MLP 三者 | ≈0.093 | ≈0.092 | ≤0.096 | — |
+| MLP, all three | ~0.093 | ~0.092 | ≤0.096 | — |
 
-`k_proj` / `v_proj` 是 GQA 壓到 4 個 KV head 的 512 維小矩陣。它們被迫承載較密的資訊，
-離群值較多，量化誤差因此最高，且 `v_proj` 在深層明顯惡化。
+`k_proj` and `v_proj` are the 512-dimensional matrices GQA compresses down to four KV heads. They are
+forced to carry denser information, they contain more outliers, and they take the highest quantization
+error in the network. `v_proj` clearly degrades with depth.
 
-這是一個**與 embedding 無關的候選機制**，而且對應到一個可做的實驗（見 POST-HOC）。
+This is a candidate mechanism with nothing to do with embeddings, and it suggests an experiment: an arm
+keeping `k_proj` and `v_proj` at 8-bit would cost far less memory than arm E, because those matrices are
+small. It is recorded as a post-hoc note rather than folded into the registered hypotheses.
 
-## 5. 對計畫的影響
+## Consequences for the plan
 
-1. **arm E 照跑**（H2 的行為層檢定尚未進行）
-2. **arm D 的重要性上升**：group size 若真的有幫助，機制指向 activation/weight outlier，
-   而 KV 投影正是 outlier 最多的地方
-3. **L0 這張圖仍然值得放進作品集**，但它的角色從「H2 的證據」變成
-   **「一個被自己的資料否證的直覺」**，而且它證明了 per-group affine 量化的自適應性
-4. README 的頭圖不應該用這張。頭圖留給 T10 的記憶體 vs 品質圖
-
-## 6. 面試怎麼用這個空結果
-
-> 「我原本假設稀有 token 的 embedding 會被量化得比較差，因為低資源語言的知識住在那裡。
-> 我先在權重空間直接量，結果相對誤差幾乎是常數，和 token 頻率的相關是 −0.03。
-> 原因是 affine 量化的 scale 由每組 64 個權重的 min/max 決定，它是尺度不變的，
-> per-group 縮放已經自動適應了每一列。所以那個直覺錯了，而且錯得很乾淨。
-> 但這只否證了權重空間的前提，不否證行為層的不對稱，那要靠評測。
-> 順帶我看到 GQA 的 KV 投影才是誤差最高的地方，深層的 v_proj 到 0.12。」
-
-**這段的價值在於「我先花一小時否證了自己的假設，才去花三小時跑評測」。**
+1. **Arm E still runs.** The behavioural test of H2 has not happened yet.
+2. **Arm D matters more than it did.** If group size turns out to help, the mechanism points at
+   outliers, and the KV projections are where the outliers are.
+3. **This figure stays in the writeup**, but its role changes. It is no longer evidence for the
+   mechanism. It is an intuition falsified by its own data, and a demonstration that per-group affine
+   quantization is more adaptive than it looks.
+4. It should not be the lead figure. That slot belongs to the memory against quality plot.
