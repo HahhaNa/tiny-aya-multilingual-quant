@@ -1,15 +1,15 @@
 # ENVIRONMENT
 
-## 硬體
-| 項目 | 值 |
+## Hardware
+| Item | Value |
 |---|---|
-| 晶片 | Apple M3（10 GPU cores）|
-| 記憶體 | 16 GB unified |
+| Chip | Apple M3, 10 GPU cores|
+| Memory | 16 GB unified |
 | macOS | 26.5.2 (25F84) |
-| 可用磁碟 | 130Gi |
-| 記憶體頻寬（規格推算）| ~100 GB/s |
+| Free disk | 130Gi |
+| Memory bandwidth (from spec) | ~100 GB/s |
 
-## 套件版本
+## Package versions
 ```
 datasets==5.0.1
 huggingface-hub==1.29.0

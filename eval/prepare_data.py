@@ -1,4 +1,5 @@
-"""T4 · 資料層與 tokenizer fertility。不碰模型，只碰 tokenizer 與文字。"""
+"""Build the parallel corpus and measure tokenizer fertility. Touches the tokenizer and text only,
+   never the model."""
 import json, csv
 from pathlib import Path
 from huggingface_hub import hf_hub_download
@@ -7,19 +8,19 @@ from transformers import AutoTokenizer
 REPO = "openlanguagedata/flores_plus"
 MODEL = "CohereLabs/tiny-aya-global"
 
-# 事前選定（PREREGISTRATION §5），不得依結果調整
+# Fixed in advance (PREREGISTRATION section 5). Not to be adjusted after seeing results.
 LANGS = [
-    # flores_code, 中文名, script, script_family, tier, 在設計中的角色
-    ("eng_Latn", "英語",   "Latin",       "Latin",     "high", "對照組"),
-    ("spa_Latn", "西班牙語", "Latin",       "Latin",     "high", "對照組第二點"),
-    ("rus_Cyrl", "俄語",   "Cyrillic",    "non-Latin", "high", "高資源x非拉丁（分離文字系統與資源量）"),
-    ("cmn_Hant", "繁體中文", "Han",         "non-Latin", "high", "高資源x非拉丁第二點；唯一可人工抽檢"),
-    ("hin_Deva", "印地語",  "Devanagari",  "non-Latin", "mid",  "中段橋樑"),
-    ("arb_Arab", "阿拉伯語", "Arabic",      "non-Latin", "mid",  "中段橋樑；RTL"),
-    ("swh_Latn", "斯瓦希里語","Latin",      "Latin",     "low",  "低資源x拉丁（關鍵反例）"),
-    ("yor_Latn", "約魯巴語", "Latin+聲調",  "Latin",     "low",  "低資源x拉丁第二點"),
-    ("amh_Ethi", "阿姆哈拉語","Ge'ez",      "non-Latin", "low",  "低資源x非拉丁（理論最脆弱）"),
-    ("mya_Mymr", "緬甸語",  "Myanmar",     "non-Latin", "low",  "低資源x非拉丁第二點；預期最高 fertility"),
+    # flores_code, name, script, script_family, tier, role in the design
+    ("eng_Latn", "English",  "Latin",      "Latin",     "high", "control"),
+    ("spa_Latn", "Spanish",  "Latin",      "Latin",     "high", "second control"),
+    ("rus_Cyrl", "Russian",  "Cyrillic",   "non-Latin", "high", "high resource non-Latin; separates script from resource level"),
+    ("cmn_Hant", "Chinese (Traditional)", "Han", "non-Latin", "high", "second high resource non-Latin; the only language spot checked by hand"),
+    ("hin_Deva", "Hindi",    "Devanagari", "non-Latin", "mid",  "midpoint"),
+    ("arb_Arab", "Arabic",   "Arabic",     "non-Latin", "mid",  "midpoint; RTL makes broken output visible"),
+    ("swh_Latn", "Swahili",  "Latin",      "Latin",     "low",  "low resource Latin; the key counterexample"),
+    ("yor_Latn", "Yoruba",   "Latin+tone", "Latin",     "low",  "second low resource Latin; diacritics raise fertility"),
+    ("amh_Ethi", "Amharic",  "Ge'ez",      "non-Latin", "low",  "low resource non-Latin; in theory the most fragile corner"),
+    ("mya_Mymr", "Burmese",  "Myanmar",    "non-Latin", "low",  "second low resource non-Latin; highest expected fertility"),
 ]
 
 def load_lang(code):
@@ -28,25 +29,25 @@ def load_lang(code):
     rows.sort(key=lambda r: r["id"])
     return rows
 
-print("=== 下載 FLORES+ devtest ===")
+print("=== downloading FLORES+ devtest ===")
 data = {c: load_lang(c) for c, *_ in LANGS}
 ns = {c: len(v) for c, v in data.items()}
-print("  句數:", ns)
-assert len(set(ns.values())) == 1, f"句數不一致，非平行語料: {ns}"
+print("  sentence counts:", ns)
+assert len(set(ns.values())) == 1, f"unequal sentence counts, corpus is not parallel: {ns}"
 ids = [r["id"] for r in data["eng_Latn"]]
 for c, v in data.items():
-    assert [r["id"] for r in v] == ids, f"{c} 的 id 序列與英語不一致"
+    assert [r["id"] for r in v] == ids, f"{c} ids do not align with English"
 N = len(ids)
-print(f"  ✓ 10 語言各 {N} 句，id 完全對齊（平行語料）")
+print(f"  ok: {N} sentences in each of 10 languages, ids fully aligned")
 
-# 平行語料落檔
+# write the parallel corpus
 Path("data").mkdir(exist_ok=True)
 with open("data/flores_10lang.jsonl", "w", encoding="utf-8") as f:
     for i in range(N):
         f.write(json.dumps({"id": ids[i], **{c: data[c][i]["text"] for c, *_ in LANGS}},
                            ensure_ascii=False) + "\n")
 
-print("\n=== 計算 tokenizer fertility ===")
+print("\n=== tokenizer fertility ===")
 tok = AutoTokenizer.from_pretrained(MODEL)
 meta = []
 for code, name, script, fam, tier, role in LANGS:
@@ -54,7 +55,7 @@ for code, name, script, fam, tier, role in LANGS:
     n_tok = sum(len(tok.encode(t, add_special_tokens=False)) for t in texts)
     n_byte = sum(len(t.encode("utf-8")) for t in texts)
     n_char = sum(len(t) for t in texts)
-    meta.append(dict(flores_code=code, name_zh=name, script=script, script_family=fam,
+    meta.append(dict(flores_code=code, name=name, script=script, script_family=fam,
                      tier=tier, region_cluster="", n_sents=N,
                      tokens=n_tok, bytes=n_byte, chars=n_char,
                      fertility_tok_per_100b=round(n_tok/n_byte*100, 2),
@@ -65,8 +66,8 @@ with open("data/lang_meta.csv", "w", newline="", encoding="utf-8") as f:
     w = csv.DictWriter(f, fieldnames=list(meta[0].keys())); w.writeheader(); w.writerows(meta)
 
 base = next(m for m in meta if m["flores_code"] == "eng_Latn")["fertility_tok_per_100c"]
-print(f"\n{'語言':12}{'tier':6}{'tok/100字元':>12}{'vs 英語':>9}{'tok/100位元組':>14}")
+print(f"\n{'language':24}{'tier':6}{'tok/100 chars':>14}{'vs English':>12}{'tok/100 bytes':>15}")
 for m in sorted(meta, key=lambda x: -x["fertility_tok_per_100c"]):
-    print(f"{m['name_zh']:12}{m['tier']:6}{m['fertility_tok_per_100c']:12.1f}"
-          f"{m['fertility_tok_per_100c']/base:8.2f}x{m['fertility_tok_per_100b']:14.1f}")
+    print(f"{m['name']:24}{m['tier']:6}{m['fertility_tok_per_100c']:14.1f}"
+          f"{m['fertility_tok_per_100c']/base:11.2f}x{m['fertility_tok_per_100b']:15.1f}")
 print("\n→ data/flores_10lang.jsonl, data/lang_meta.csv")

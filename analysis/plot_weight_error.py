@@ -1,4 +1,4 @@
-"""T3 圖：均勻 4-bit 量化在權重空間是不是對某些 token 比較不利。答案是否。"""
+"""Does uniform 4-bit quantization disadvantage some tokens in weight space? It does not."""
 import csv, collections, numpy as np, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ med=np.median(rel)
 
 fig,axes=plt.subplots(1,3,figsize=(16,5))
 
-# --- 1. 誤差 vs 頻率 ---
+# --- 1. error against frequency ---
 ax=axes[0]
 for t in ["high","mid","low"]:
     m=mono&(tier==t)
@@ -39,7 +39,7 @@ ax.set_title("Rare tokens are not quantized worse\nSlope is flat. r(log freq, er
              fontsize=11,loc="left")
 ax.legend(fontsize=9,frameon=False)
 
-# --- 2. 依 tier 的分布 ---
+# --- 2. distribution by resource tier ---
 ax=axes[1]
 data=[rel[mono&(tier==t)] for t in ["high","mid","low"]]
 bp=ax.boxplot(data,tick_labels=["high","mid","low"],widths=.55,showfliers=False,patch_artist=True,
@@ -52,7 +52,7 @@ ax.set_xlabel("Resource tier of the token's primary language")
 ax.set_title("No tier effect\nThe gap between tiers is 12% of the within-tier spread",
              fontsize=11,loc="left")
 
-# --- 3. 逐層 ---
+# --- 3. by transformer module and depth ---
 ax=axes[2]
 L=list(csv.DictReader(open("results/layer_error.csv")))
 by=collections.defaultdict(lambda: ([],[]))

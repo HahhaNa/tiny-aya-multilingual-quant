@@ -1,7 +1,7 @@
-# T2 Sanity Check
+# Sanity check
 
 
-## A-bf16  （載入 3.6s）
+## A-bf16  (loaded in 3.6s)
 
 ### en  (99 tok / 10.7s = 9.3 tok/s)
 
@@ -18,7 +18,7 @@
 > Upunguzaji wa modeli unaweza kudhuru lugha fulani zaidi kuliko nyingine kwa sababu ya tofauti katika idadi ya data iliyopatikana, utata wa sarufi, na upatikanaji wa rasilimali za kielimu. Lugha zenye data chache au rasilimali chache za kielimu, kama vile lugha za kigeni au lugha za watu wachache, huwa na changamoto kubwa zaidi katika upunguzaji wa modeli. Hii inaweza kusababisha upungufu wa usahihi na uwezo wa kujifunza wa modeli, hasa katika lugh
 
 
-## B-q8-g64  （載入 1.9s）
+## B-q8-g64  (loaded in 1.9s)
 
 ### en  (81 tok / 4.5s = 18.1 tok/s)
 
@@ -35,7 +35,7 @@
 > Upunguzaji wa modeli unaweza kudhuru lugha fulani zaidi kuliko nyingine kwa sababu ya tofauti katika idadi ya data iliyopatikana, utata wa sarufi, na upatikanaji wa rasilimali za kielimu. Lugha zenye data chache au rasilimali chache za kielimu, kama vile lugha za kigeni au za kikabila, zinaweza kupata upungufu mkubwa kwa sababu modeli hauna uwezo wa kujifunza mifano na mifano ya lugha hiyo. Pia, lugha zenye sarufi ngumu au tofauti za sa
 
 
-## C-q4-g64  （載入 1.3s）
+## C-q4-g64  (loaded in 1.3s)
 
 ### en  (87 tok / 3.4s = 25.9 tok/s)
 
@@ -52,7 +52,7 @@
 2. **Utofauti wa Utamaduni na Sifa za Lugha:** Lugha tofauti zina sifa za kipekee, kama vile sarufi na maneno, ambayo yanaweza kuwa magumu kwa modeli kufahamu, hasa ikiwa model imefunzwa kwa lugha
 
 
-## D-q4-g32  （載入 1.6s）
+## D-q4-g32  (loaded in 1.6s)
 
 ### en  (121 tok / 5.0s = 24.0 tok/s)
 
@@ -71,7 +71,7 @@
 2. **Uwezo wa Kujifunza na Ujuzi wa Lugha:** Lugha fulani zinaweza kuwa na ujuzi na mifumo ya lugha ambayo ni ng
 
 
-## E-q4-emb8  （載入 1.5s）
+## E-q4-emb8  (loaded in 1.5s)
 
 ### en  (69 tok / 3.5s = 19.5 tok/s)
 

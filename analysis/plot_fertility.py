@@ -1,5 +1,4 @@
-"""T4 圖表：tokenizer fertility 的三種正規化，以及它們為什麼給出不同答案。
-   圖內一律用英文標籤（作品集受眾為國際）。"""
+"""Three normalizations of tokenizer fertility, and why they disagree."""
 import csv, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -7,14 +6,14 @@ import matplotlib.pyplot as plt
 EN = {"eng_Latn":"English","spa_Latn":"Spanish","rus_Cyrl":"Russian","cmn_Hant":"Chinese (Trad)",
       "hin_Deva":"Hindi","arb_Arab":"Arabic","swh_Latn":"Swahili","yor_Latn":"Yoruba",
       "amh_Ethi":"Amharic","mya_Mymr":"Burmese"}
-COL = {"high":"#22607F","mid":"#7A8B87","low":"#A6650F"}   # 冷色=高資源，暖色=低資源
+COL = {"high":"#22607F","mid":"#7A8B87","low":"#A6650F"}   # cool for high resource, warm for low
 
 rows = list(csv.DictReader(open("data/lang_meta.csv")))
 f = lambda r,k: float(r[k])
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.4))
 
-# --- 左：正確的度量（平行語料，同一句話需要幾個 token）---
+# --- left: the unconfounded measure, tokens for the same parallel sentence ---
 d = sorted(rows, key=lambda r: f(r,"tok_ratio_vs_eng"))
 ax1.barh([EN[r["flores_code"]] for r in d], [f(r,"tok_ratio_vs_eng") for r in d],
          color=[COL[r["tier"]] for r in d])
@@ -26,7 +25,7 @@ ax1.set_xlim(0, 6.3)
 ax1.set_xlabel("Tokens needed for the same sentence (English = 1.0)")
 ax1.set_title("Token cost on parallel text\nThe only denominator with no confound", fontsize=11, loc="left")
 
-# --- 右：三種正規化互相矛盾 ---
+# --- right: the three normalizations disagree ---
 d2 = sorted(rows, key=lambda r: -f(r,"tok_ratio_vs_eng"))
 x = range(len(d2))
 def norm(k):

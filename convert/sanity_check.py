@@ -1,5 +1,5 @@
-"""T2 驗收：五個 arm 各生成 en / zh-Hant / sw 三語，確認沒有轉壞。
-   這不是評測，只是 smoke test——但它會第一次讓你看到 4-bit 在低資源語言上長什麼樣。"""
+"""Smoke test: every arm generates in English, Traditional Chinese and Swahili, to confirm the
+   conversions are not broken. Not an evaluation."""
 import json, time, gc
 from pathlib import Path
 from mlx_lm import load, generate
@@ -15,9 +15,9 @@ out, rows = ["# T2 Sanity Check\n"], []
 for arm in ARMS:
     p = Path("models") / arm
     if not p.exists():
-        out.append(f"\n## {arm} — 缺少模型目錄\n"); continue
+        out.append(f"\n## {arm} — model directory missing\n"); continue
     t0 = time.time(); model, tok = load(str(p)); load_s = time.time() - t0
-    out.append(f"\n## {arm}  （載入 {load_s:.1f}s）\n")
+    out.append(f"\n## {arm}  (loaded in {load_s:.1f}s)\n")
     for lang, prompt in PROMPTS.items():
         msgs = [{"role": "user", "content": prompt}]
         text = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=False)
