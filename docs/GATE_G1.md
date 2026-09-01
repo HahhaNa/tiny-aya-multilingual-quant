@@ -16,8 +16,8 @@
 | `num_hidden_layers` | 36 | body = 2.812B → 總計 3.349B ≈ 3.35B ✓ |
 | GQA | 16 q-head / 4 kv-head, head_dim 128 | KV cache 只有 MHA 的 1/4 |
 | `layer_types` | 3 × sliding(4096) + 1 × full，重複 9 次 | 與 Command R7B 同構，正是 `cohere2` |
-| `max_position_embeddings` | 500000 | |
-| `tie_word_embeddings` | **未列出** → 取 HF 預設 `True` | **arm E 的 predicate 只需匹配 embedding 一處即同時保護 lm_head**；Day 2 需以 `model.parameters()` 實測確認 |
+| `max_position_embeddings` | **8192** | 鏡像 repo 寫 500000，**原 repo 是 8192**——不要信鏡像的 config |
+| `tie_word_embeddings` | 未列出 → **實測確認 True** | `convert/check_tie.py` 兩路驗證：transformers 解析為 True，且 290 個 tensor 中**不存在 `lm_head.weight`**。arm E 的 predicate 只需匹配 `embed_tokens`，一次同時保護輸入與輸出端 |
 
 ## 推導出的權重預算（`analysis/param_budget.py`，與計畫預估完全吻合）
 | arm | bits/param | GB | vs C |
@@ -30,10 +30,15 @@
 
 arm E 的「只多 14% 記憶體」是算出來的，不是引用的。
 
-## 現存 blocker（只有人能解）
+## 授權（已解除，2026-09-01）
+`gated=auto`，網頁按下接受後立即生效。原 repo 的 config 已可直接取得，上表已改用原 repo 的值。
+
+## 曾經的 blocker（保留紀錄）
 `CohereLabs/tiny-aya-global` 需在網頁按下接受 CC-BY-NC。`gated=auto` = 按完立即生效，不需等審核。
 未解前無法產生 **arm A（bf16 基線）**，而所有 Δ 都相對它 → T2 之後全部卡住。
 （8-bit 鏡像不能當基線：它已經是被量化過的模型。）
+
+**教訓**：鏡像 repo 可以用來回答「MLX 支不支援」，但**不能用來抄 config 數值**——`max_position_embeddings` 就對不上。
 
 ## 順手發現：作品集的相對定位
 `mlx-community` 已有 `tiny-aya-global-8bit-mlx` 與 `tiny-aya-fire-4bit`。
