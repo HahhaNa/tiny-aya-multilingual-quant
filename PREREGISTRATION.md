@@ -68,7 +68,7 @@ Tiny Aya 因為是為低資源語言專門設計的（語言桶式 tokenizer、�
 | English | eng_Latn | Latin | high | 對照 |
 | Spanish | spa_Latn | Latin | high | 對照 |
 | Russian | rus_Cyrl | Cyrillic | high | **高資源 × 非拉丁**（分離文字系統與資源量）|
-| Chinese (Trad) | zho_Hant | Han | high | 高資源 × 非拉丁；唯一可人工抽檢 |
+| Chinese (Trad) | cmn_Hant | Han | high | 高資源 × 非拉丁；唯一可人工抽檢（見修訂 A1）|
 | Hindi | hin_Deva | Devanagari | mid | 中段橋樑 |
 | Arabic | arb_Arab | Arabic (RTL) | mid | 中段橋樑 |
 | Swahili | swh_Latn | Latin | low | **低資源 × 拉丁**（關鍵反例）|
@@ -121,6 +121,18 @@ Day 7 中場關卡依**事前排定**的順序砍除，不得依「哪個結果�
 3. FLORES 是新聞／維基領域，有領域偏差
 4. tier 分級本身是粗糙的離散化
 5. M3 Air 無風扇 → 速度數字是這台機器的持續效能，非架構上限
+
+---
+
+## 修訂紀錄（識別碼層級，非假設層級）
+
+### A1 · 2026-09-01 — 中文的 FLORES 代碼
+**改動**：`zho_Hant` → `cmn_Hant`
+**原因**：FLORES+（`openlanguagedata/flores_plus`）採 ISO 639-3 個別語言碼，
+把 FLORES-200 時代的巨集語言碼 `zho_*` 改為 `cmn_*`。**同一份資料、同一個語言、同一個文字系統**，
+只是識別碼命名更新。221 個 devtest 語言中存在 `cmn_Hans` / `cmn_Hant` / `yue_Hant`。
+**當下狀態**：`results/` 仍為空，尚未產生任何評測數字。
+**這不構成假設修改**：H1/H2/H0、應變數、統計檢定、tier 分級、停止規則皆未動。
 
 ---
 
