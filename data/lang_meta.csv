@@ -1,0 +1,11 @@
+flores_code,name_zh,script,script_family,tier,region_cluster,n_sents,tokens,bytes,chars,fertility_tok_per_100b,fertility_tok_per_100c,bytes_per_char,notes,tokens_per_parallel_sent_median,tok_ratio_vs_eng
+eng_Latn,英語,Latin,Latin,high,,1012,27830,132096,131966,21.07,21.09,1.0,對照組,26,1.0
+spa_Latn,西班牙語,Latin,Latin,high,,1012,36067,159885,156983,22.56,22.98,1.02,對照組第二點,34,1.308
+rus_Cyrl,俄語,Cyrillic,non-Latin,high,,1012,40480,260342,142096,15.55,28.49,1.83,高資源x非拉丁（分離文字系統與資源量）,38,1.462
+cmn_Hant,繁體中文,Han,non-Latin,high,,1012,33306,116199,40695,28.66,81.84,2.86,高資源x非拉丁第二點；唯一可人工抽檢,31,1.192
+hin_Deva,印地語,Devanagari,non-Latin,mid,,1012,91950,337073,131058,27.28,70.16,2.57,中段橋樑,87,3.346
+arb_Arab,阿拉伯語,Arabic,non-Latin,mid,,1012,35878,211263,116307,16.98,30.85,1.82,中段橋樑；RTL,34,1.308
+swh_Latn,斯瓦希里語,Latin,Latin,low,,1012,39936,138308,138104,28.87,28.92,1.0,低資源x拉丁（關鍵反例）,38,1.462
+yor_Latn,約魯巴語,Latin+聲調,Latin,low,,1012,59481,168853,126844,35.23,46.89,1.33,低資源x拉丁第二點,55,2.115
+amh_Ethi,阿姆哈拉語,Ge'ez,non-Latin,low,,1012,57049,225450,87132,25.3,65.47,2.59,低資源x非拉丁（理論最脆弱）,54,2.077
+mya_Mymr,緬甸語,Myanmar,non-Latin,low,,1012,137812,465528,163169,29.6,84.46,2.85,低資源x非拉丁第二點；預期最高 fertility,131,5.038
