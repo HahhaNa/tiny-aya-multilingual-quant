@@ -6,3 +6,5 @@ __pycache__/
 logs/
 .DS_Store
 data/flores*
+AGENT_PLAN.md
+LEARNING_PLAN.md

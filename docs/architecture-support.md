@@ -1,6 +1,6 @@
-# G1 關卡結論 — MLX 支不支援 Tiny Aya 架構
+# MLX 支不支援 Tiny Aya 的架構
 
-**日期**：2026-09-01 · **結論：通過，走原計畫（不需備援 a/b/c）**
+**結論：支援，不需備援方案**
 
 ## 怎麼確認的
 `CohereLabs/tiny-aya-global` 是 gated（`gated=auto`），直接抓 config.json 得到 403。

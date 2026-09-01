@@ -2,13 +2,6 @@
 
 **What uniform 4-bit quantization costs each of ten languages on a fanless laptop, and whether a small change to the recipe can pay some of it back.**
 
-> **Status: in progress.** Days 1 to 5 of a 14 day sprint are done. The behavioural evaluation is
-> running now, so this README reports method and the weight level results only. Nothing here claims
-> a quality finding yet. Hypotheses were registered in [`PREREGISTRATION.md`](PREREGISTRATION.md)
-> before any evaluation was run, and the commit history shows the ordering.
-
----
-
 ## The question
 
 [Tiny Aya](https://huggingface.co/CohereLabs/tiny-aya-global) is a 3.35B multilingual model from
@@ -17,6 +10,10 @@ deployment setting, quantization is not optional. It is the default state.
 
 Almost every quantization evaluation is done in English. This model exists for the seventy languages
 that nobody evaluates.
+
+The behavioural evaluation is still running, so what follows is the design, the corpus work, and the
+weight level results. Hypotheses were registered in [`PREREGISTRATION.md`](PREREGISTRATION.md) before
+any of it was run, and the commit history preserves that ordering.
 
 There is a specific mechanism worth suspecting. The vocabulary is 262,144 entries wide because it has
 to cover those seventy languages, so the embedding table alone is 537M parameters, sixteen percent of
@@ -90,7 +87,7 @@ by row norm, and English tokens have the largest embedding norms in this vocabul
 
 This falsifies the weight space premise behind the mitigation hypothesis. It does not falsify the
 mitigation itself, which is a claim about behaviour and is tested by arm E against arm C. Arm E still
-runs. Full write up in [`docs/T3_FINDINGS.md`](docs/T3_FINDINGS.md).
+runs. Full write up in [`docs/weight-space-error.md`](docs/weight-space-error.md).
 
 One thing did stand out. The GQA key and value projections, the 512 dimensional matrices compressed
 to four KV heads, carry the highest quantization error in the network, and `v_proj` gets worse with
