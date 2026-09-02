@@ -11,9 +11,9 @@ deployment setting, quantization is not optional. It is the default state.
 Almost every quantization evaluation is done in English. This model exists for the seventy languages
 that nobody evaluates.
 
-The behavioural evaluation is still running, so what follows is the design, the corpus work, and the
-weight level results. Hypotheses were registered in [`PREREGISTRATION.md`](PREREGISTRATION.md) before
-any of it was run, and the commit history preserves that ordering.
+Hypotheses were registered in [`PREREGISTRATION.md`](PREREGISTRATION.md) before any evaluation was
+run, and the commit history preserves that ordering. One of the two was supported, one failed on
+statistical power, and the mechanism behind the one that worked turned out to be wrong.
 
 There is a specific mechanism worth suspecting. The vocabulary is 262,144 entries wide because it has
 to cover those seventy languages, so the embedding table alone is 537M parameters, sixteen percent of
@@ -45,7 +45,59 @@ factors are correlated in practice, and a reviewer will ask which one is doing t
 Swahili is the load bearing choice. If low resource Latin languages degrade little while low resource
 non-Latin ones degrade a lot, the driver is the script and not the resource level.
 
-## What is done, and one result that came out empty
+## Results
+
+![memory against fairness](figures/05_memory_vs_quality.png)
+
+**8-bit is lossless everywhere**, including on the languages the model knows least well. Every language
+falls inside ±0.15%, within the noise floor.
+
+**Under 4-bit, degradation is uneven.** Amharic loses 2.08%, Yoruba 1.94%, Swahili 1.66%, and English
+loses least of all ten at 0.39%. Averaged by tier: 1.04% high, 1.53% mid, 1.56% low. Among these ten
+languages the gap is +0.52 percentage points, with a bootstrap interval of [+0.40, +0.65].
+
+**Writing system does no work.** Latin averages 1.35% and non-Latin 1.34%. This is the comparison the
+2x2 design was built to make, and it disagrees with the closest prior work, which found non-Latin
+scripts took markedly more damage at 8B to 103B.
+
+**Where the bits go matters more than how many.** Two arms three percent apart in size choose
+oppositely:
+
+| Arm | Size | Mean ΔBPB | Fairness gap |
+| --- | --- | --- | --- |
+| C, 4-bit g=64 | 1.91 GB | 1.346% | +0.52 pp |
+| D, 4-bit g=32 | 2.11 GB | **0.612%** | **+0.67 pp** |
+| E, 4-bit body, 8-bit embedding | 2.17 GB | 0.746% | **+0.26 pp** |
+
+Arm D spends its extra half bit uniformly and buys the best average of any arm, while **widening** the
+gap. Arm E spends a comparable amount on the embedding alone, gives up some average, and closes about
+half the gap. An evaluation reporting only the mean would rank D above E.
+
+![delta bpb](figures/03_delta_bpb.png)
+
+### The registered tests
+
+**The mitigation hypothesis was supported.** `gap(C) − gap(E)` is +0.269 pp with an interval of
+[+0.201, +0.338], and shrinkage is 51.2% against a threshold of 50% set in advance. The claim that
+survives without qualification is that arm E significantly narrows the gap; the shrinkage interval runs
+from 40% to 65%, so "roughly half" is the defensible phrasing rather than "at least half".
+
+**Its mechanism was wrong.** Weight-space error turned out to be uniform across languages and
+frequencies, which falsified the reason arm E was expected to work. It works anyway. Low resource
+languages are more sensitive to embedding perturbation than high resource ones even though the
+perturbation is the same size, and explaining that is the next piece of work.
+
+**The asymmetry hypothesis failed on power, not on effect.** The registered language-level regression
+puts `tier_low` at +0.950 with an interval of [−0.448, +2.348]: six parameters on ten observations,
+four residual degrees of freedom, an interval spanning 2.8 percentage points against an observed
+difference of 0.5. The design could not have detected what it was looking for. That flaw was in the
+plan from the beginning, since a language-level regression has as many observations as it has
+languages. Fixing it takes more languages, not more sentences.
+
+So: among these ten languages the gap is real and precisely estimated, and arm E reduces it. Beyond
+these ten, nothing is established. Full numbers in [`docs/results.md`](docs/results.md).
+
+## Two things measured along the way
 
 ### Token cost is not distributed evenly, before quantization enters
 
@@ -85,9 +137,11 @@ inside a group, not its magnitude. Per group scaling has already adapted to each
 The evidence in fact runs the other way. Since relative error is fixed, absolute perturbation is set
 by row norm, and English tokens have the largest embedding norms in this vocabulary.
 
-This falsifies the weight space premise behind the mitigation hypothesis. It does not falsify the
-mitigation itself, which is a claim about behaviour and is tested by arm E against arm C. Arm E still
-runs. Full write up in [`docs/weight-space-error.md`](docs/weight-space-error.md).
+This falsifies the weight space premise behind the mitigation hypothesis, and the behavioural result
+above makes that outcome more interesting rather than less: **arm E works, and this is the reason it was
+supposed to work, and the reason is wrong.** Whatever makes low resource languages more sensitive to
+embedding precision, it is not that their rows carry more quantization error. Full write up in
+[`docs/weight-space-error.md`](docs/weight-space-error.md).
 
 One thing did stand out. The GQA key and value projections, the 512 dimensional matrices compressed
 to four KV heads, carry the highest quantization error in the network, and `v_proj` gets worse with
