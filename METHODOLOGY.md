@@ -38,15 +38,61 @@ why the speed measurement in this project is interleaved, and this table is the 
 - **Environment.** On mains power, low power mode off, other applications closed,
   `sudo sysctl iogpu.wired_limit_mb=13000`.
 - **Thermal record.** `powermetrics --samplers cpu_power,gpu_power,thermal -i 1000` in the background,
-  reconciled afterwards.
+  reconciled afterwards. It needs root, so the run reported here was made without it; the order-effect
+  test in section 1.4 is what stands in for it.
 - **Statistics.** Median and IQR, never the mean, because throttling produces a one-sided tail.
 - **Across languages.** tok/s is not comparable between languages and must be converted using fertility.
 
-### 1.3 Testing whether the protocol worked
+### 1.3 What the protocol changed
+
+Run under the interleaved protocol, against the same roofline:
+
+| Arm | Roofline tok/s | Median, interleaved | IQR | Efficiency, interleaved | Efficiency, sequential |
+| --- | --- | --- | --- | --- | --- |
+| A-bf16 | 14.9 | 13.12 | 12.94 to 13.23 | **88%** | 79% |
+| B-q8-g64 | 27.9 | 24.30 | 23.69 to 24.57 | **87%** | 72% |
+| C-q4-g64 | 52.4 | 43.49 | 42.70 to 47.36 | **83%** | 56% |
+| D-q4-g32 | 47.4 | 40.29 | 38.97 to 40.79 | **85%** | 51% |
+| E-q4-emb8 | 46.1 | 38.96 | 37.31 to 41.76 | **85%** | 49% |
+
+The efficiency spread collapses from **30 percentage points to 5**. Almost all of what the sequential
+run showed was heat, not dequantization cost.
+
+A small gradient survives, 88% for bf16 against 83 to 85% for the 4-bit arms. That residual is the
+plausible genuine cost of dequantization, and it is an order of magnitude smaller than the sequential
+run implied. Reporting the sequential numbers would have overstated it roughly sixfold.
+
+### 1.4 Testing whether the protocol worked
 
 After interleaving, fit `decode_tps ~ arm + order_idx` on `results/speed.csv`. If the `order_idx`
 coefficient is still significant, 90 seconds of cooldown was not enough and the measurement has to be
 rerun with a longer one. **This test gets reported either way.**
+
+Result: the coefficient is **−0.0080 tok/s per position, 95% CI [−0.0573, +0.0413], p = 0.746**. No
+detectable residual order effect, so 90 seconds was sufficient.
+
+### 1.5 Peak memory has to be measured in a separate process
+
+The `peak_gb` column in `results/speed.csv` is **invalid and superseded** by
+`results/peak_memory.csv`. MLX reports peak memory as a process-wide high-water mark, and
+`mx.clear_cache()` does not reset it, so once the bf16 arm had been loaded every later arm in the same
+process reported the same 7.25 GB. Five arms differing by more than threefold in size all reporting an
+identical peak is what gave it away.
+
+The fix is `mx.reset_peak_memory()`, now called in `bench/speed.py`, plus `bench/peak_memory.py`, which
+measures each arm in its own subprocess. Peak memory is not thermally sensitive, so it needs process
+isolation rather than the interleaved protocol.
+
+| Arm | Weights | Peak with a 2048-token context | KV cache and activations |
+| --- | --- | --- | --- |
+| A-bf16 | 6.70 GB | 7.25 GB | 0.55 GB |
+| B-q8-g64 | 3.56 GB | 4.28 GB | 0.72 GB |
+| C-q4-g64 | 1.88 GB | 2.61 GB | 0.73 GB |
+| D-q4-g32 | 2.09 GB | 2.82 GB | 0.73 GB |
+| E-q4-emb8 | 2.15 GB | 2.88 GB | 0.73 GB |
+
+The weight figures match `analysis/param_budget.py` exactly, which is a useful independent check on
+both the derivation and the conversion.
 
 ### 1.4 Converting speed across languages
 

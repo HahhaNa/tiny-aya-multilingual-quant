@@ -38,6 +38,7 @@ for row in order:
     n_prompt = len(tok.encode(text, add_special_tokens=False))
 
     mx.clear_cache()
+    mx.reset_peak_memory()   # process-wide high-water mark; without this it never falls back down
     wall = time.time() - t_zero
     t0 = time.time(); ttft = None; last = None; n = 0
     for resp in stream_generate(model, tok, text, max_tokens=MAX_TOKENS):
