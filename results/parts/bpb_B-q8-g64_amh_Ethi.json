@@ -1,0 +1,1 @@
+{"arm": "B-q8-g64", "flores_code": "amh_Ethi", "n_sents": 1012, "sum_nll_nats": 170799.6514, "sum_bytes": 225450, "sum_tokens": 57049, "bpb": 1.092978, "ppl_ref": 19.9636, "sec": 238.7}

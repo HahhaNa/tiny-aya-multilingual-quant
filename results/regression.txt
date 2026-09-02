@@ -1,0 +1,31 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                  delta   R-squared:                       0.504
+Model:                            OLS   Adj. R-squared:                 -0.115
+Method:                 Least Squares   F-statistic:                    0.8140
+Date:                Wed, 02 Sep 2026   Prob (F-statistic):              0.596
+Time:                        10:13:43   Log-Likelihood:                -4.1387
+No. Observations:                  10   AIC:                             20.28
+Df Residuals:                       4   BIC:                             22.09
+Df Model:                           5                                         
+Covariance Type:            nonrobust                                         
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+const          1.4295      0.670      2.134      0.100      -0.430       3.289
+tier_low       0.9500      0.503      1.887      0.132      -0.448       2.348
+tier_mid       0.7361      0.562      1.310      0.260      -0.824       2.296
+non_latin      0.1347      0.501      0.269      0.801      -1.255       1.525
+fertility     -0.2553      0.273     -0.934      0.403      -1.014       0.503
+baseline      -0.1100      0.520     -0.212      0.843      -1.553       1.333
+==============================================================================
+Omnibus:                        1.456   Durbin-Watson:                   2.162
+Prob(Omnibus):                  0.483   Jarque-Bera (JB):                0.851
+Skew:                          -0.352   Prob(JB):                        0.654
+Kurtosis:                       1.757   Cond. No.                         14.8
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+tier_low 95% CI [-0.4478, +2.3478]  residual df 4

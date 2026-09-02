@@ -1,0 +1,1 @@
+{"arm": "E-q4-emb8", "flores_code": "rus_Cyrl", "n_sents": 1012, "sum_nll_nats": 133657.496, "sum_bytes": 260342, "sum_tokens": 40480, "bpb": 0.740668, "ppl_ref": 27.1619, "sec": 166.0}

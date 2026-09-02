@@ -1,0 +1,1 @@
+{"arm": "E-q4-emb8", "flores_code": "yor_Latn", "n_sents": 1012, "sum_nll_nats": 240648.3169, "sum_bytes": 168853, "sum_tokens": 59481, "bpb": 2.056121, "ppl_ref": 57.157, "sec": 242.9}

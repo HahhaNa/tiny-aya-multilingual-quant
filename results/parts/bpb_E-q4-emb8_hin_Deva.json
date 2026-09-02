@@ -1,0 +1,1 @@
+{"arm": "E-q4-emb8", "flores_code": "hin_Deva", "n_sents": 1012, "sum_nll_nats": 524608.6629, "sum_bytes": 337073, "sum_tokens": 91950, "bpb": 2.24536, "ppl_ref": 300.4763, "sec": 363.8}

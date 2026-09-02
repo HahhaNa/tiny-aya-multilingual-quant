@@ -1,0 +1,1 @@
+{"arm": "E-q4-emb8", "flores_code": "arb_Arab", "n_sents": 1012, "sum_nll_nats": 154506.2451, "sum_bytes": 211263, "sum_tokens": 35878, "bpb": 1.055109, "ppl_ref": 74.1755, "sec": 144.8}

@@ -13,7 +13,7 @@ from pathlib import Path
 import mlx.core as mx
 from mlx_lm import load
 
-ARMS = ["A-bf16", "B-q8-g64", "C-q4-g64", "D-q4-g32", "E-q4-emb8"]
+ARMS = ["A-bf16", "C-q4-g64", "E-q4-emb8", "D-q4-g32", "B-q8-g64"]  # priority order
 LANGS = ["eng_Latn","spa_Latn","rus_Cyrl","cmn_Hant","hin_Deva",
          "arb_Arab","swh_Latn","yor_Latn","amh_Ethi","mya_Mymr"]
 MAX_BATCH_TOKENS = 1024      # bounds logits memory: 1024 x 262144 x 2 bytes is about 537 MB
@@ -39,7 +39,9 @@ def run(arm, lang, model, tok, bos):
     texts = [r[lang] for r in rows]
     enc = [([bos] if bos is not None else []) + tok.encode(t, add_special_tokens=False) for t in texts]
     order = sorted(range(len(enc)), key=lambda i: len(enc[i]))   # sort by length to limit padding
-    tot_nll = 0.0; tot_tok = 0; tot_byte = sum(len(t.encode("utf-8")) for t in texts)
+    per_nll = [0.0]*len(texts); per_byte = [len(t.encode("utf-8")) for t in texts]
+    per_tok = [0]*len(texts)
+    tot_nll = 0.0; tot_tok = 0; tot_byte = sum(per_byte)
     i = 0; t0 = time.time()
     while i < len(order):
         b = []
@@ -51,10 +53,15 @@ def run(arm, lang, model, tok, bos):
         pad = tok.pad_token_id or 0
         ids = [enc[j] + [pad]*(L-len(enc[j])) for j in b]
         lens = [len(enc[j]) for j in b]
-        for n, l in zip(seq_nll(model, ids, lens), lens):
+        for idx, n, l in zip(b, seq_nll(model, ids, lens), lens):
             tot_nll += n; tot_tok += l - 1
+            per_nll[idx] = n; per_tok[idx] = l - 1
         mx.clear_cache()
     bpb = (tot_nll / math.log(2)) / tot_byte
+    # Per-sentence values, needed for the paired bootstrap that gives per-language CIs.
+    Path(f"results/parts/sent_{arm}_{lang}.json").write_text(json.dumps(
+        {"arm": arm, "flores_code": lang,
+         "nll": [round(v, 6) for v in per_nll], "bytes": per_byte, "tokens": per_tok}))
     return dict(arm=arm, flores_code=lang, n_sents=len(texts),
                 sum_nll_nats=round(tot_nll, 4), sum_bytes=tot_byte, sum_tokens=tot_tok,
                 bpb=round(bpb, 6), ppl_ref=round(math.exp(tot_nll / tot_tok), 4),
@@ -63,7 +70,7 @@ def run(arm, lang, model, tok, bos):
 if __name__ == "__main__":
     only = sys.argv[1:] or ARMS
     for arm in only:
-        todo = [L for L in LANGS if not Path(f"results/parts/bpb_{arm}_{L}.json").exists()]
+        todo = [L for L in LANGS if not Path(f"results/parts/sent_{arm}_{L}.json").exists()]
         if not todo:
             print(f"[skip] {arm} already complete"); continue
         print(f"=== {arm} ({len(todo)} languages to run) ===", flush=True)

@@ -1,1 +1,1 @@
-{"arm": "A-bf16", "flores_code": "yor_Latn", "n_sents": 1012, "sum_nll_nats": 238729.0565, "sum_bytes": 168853, "sum_tokens": 59481, "bpb": 2.039722, "ppl_ref": 55.3421, "sec": 380.4}
+{"arm": "A-bf16", "flores_code": "yor_Latn", "n_sents": 1012, "sum_nll_nats": 238729.0565, "sum_bytes": 168853, "sum_tokens": 59481, "bpb": 2.039722, "ppl_ref": 55.3421, "sec": 244.0}

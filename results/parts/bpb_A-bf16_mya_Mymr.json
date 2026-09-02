@@ -1,1 +1,1 @@
-{"arm": "A-bf16", "flores_code": "mya_Mymr", "n_sents": 1012, "sum_nll_nats": 765220.4587, "sum_bytes": 465528, "sum_tokens": 137812, "bpb": 2.371457, "ppl_ref": 257.9176, "sec": 792.1}
+{"arm": "A-bf16", "flores_code": "mya_Mymr", "n_sents": 1012, "sum_nll_nats": 765220.4587, "sum_bytes": 465528, "sum_tokens": 137812, "bpb": 2.371457, "ppl_ref": 257.9176, "sec": 567.7}

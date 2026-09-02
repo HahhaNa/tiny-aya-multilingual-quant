@@ -1,0 +1,1 @@
+{"arm": "E-q4-emb8", "flores_code": "mya_Mymr", "n_sents": 1012, "sum_nll_nats": 767857.654, "sum_bytes": 465528, "sum_tokens": 137812, "bpb": 2.37963, "ppl_ref": 262.9007, "sec": 544.6}

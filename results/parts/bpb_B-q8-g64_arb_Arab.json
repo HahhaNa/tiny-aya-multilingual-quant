@@ -1,1 +1,1 @@
-{"arm": "B-q8-g64", "flores_code": "arb_Arab", "n_sents": 1012, "sum_nll_nats": 153726.4972, "sum_bytes": 211263, "sum_tokens": 35878, "bpb": 1.049784, "ppl_ref": 72.5808, "sec": 173.3}
+{"arm": "B-q8-g64", "flores_code": "arb_Arab", "n_sents": 1012, "sum_nll_nats": 153726.4972, "sum_bytes": 211263, "sum_tokens": 35878, "bpb": 1.049784, "ppl_ref": 72.5808, "sec": 150.0}

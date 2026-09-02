@@ -1,0 +1,1 @@
+{"arm": "E-q4-emb8", "flores_code": "spa_Latn", "n_sents": 1012, "sum_nll_nats": 140003.5296, "sum_bytes": 159885, "sum_tokens": 36067, "bpb": 1.263298, "ppl_ref": 48.5096, "sec": 145.6}

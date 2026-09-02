@@ -1,1 +1,1 @@
-{"arm": "A-bf16", "flores_code": "hin_Deva", "n_sents": 1012, "sum_nll_nats": 515726.1295, "sum_bytes": 337073, "sum_tokens": 91950, "bpb": 2.207342, "ppl_ref": 272.8077, "sec": 561.5}
+{"arm": "A-bf16", "flores_code": "hin_Deva", "n_sents": 1012, "sum_nll_nats": 515726.1295, "sum_bytes": 337073, "sum_tokens": 91950, "bpb": 2.207342, "ppl_ref": 272.8077, "sec": 373.3}

@@ -1,0 +1,1 @@
+{"arm": "D-q4-g32", "flores_code": "mya_Mymr", "n_sents": 1012, "sum_nll_nats": 776873.7378, "sum_bytes": 465528, "sum_tokens": 137812, "bpb": 2.407571, "ppl_ref": 280.6756, "sec": 548.2}

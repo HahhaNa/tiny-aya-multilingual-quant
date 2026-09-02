@@ -1,0 +1,1 @@
+{"arm": "C-q4-g64", "flores_code": "hin_Deva", "n_sents": 1012, "sum_nll_nats": 523973.3985, "sum_bytes": 337073, "sum_tokens": 91950, "bpb": 2.242641, "ppl_ref": 298.4075, "sec": 362.2}

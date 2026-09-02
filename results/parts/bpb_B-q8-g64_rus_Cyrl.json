@@ -1,1 +1,1 @@
-{"arm": "B-q8-g64", "flores_code": "rus_Cyrl", "n_sents": 1012, "sum_nll_nats": 132175.1933, "sum_bytes": 260342, "sum_tokens": 40480, "bpb": 0.732454, "ppl_ref": 26.1853, "sec": 222.5}
+{"arm": "B-q8-g64", "flores_code": "rus_Cyrl", "n_sents": 1012, "sum_nll_nats": 132175.1933, "sum_bytes": 260342, "sum_tokens": 40480, "bpb": 0.732454, "ppl_ref": 26.1853, "sec": 170.8}

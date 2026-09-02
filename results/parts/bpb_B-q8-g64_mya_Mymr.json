@@ -1,0 +1,1 @@
+{"arm": "B-q8-g64", "flores_code": "mya_Mymr", "n_sents": 1012, "sum_nll_nats": 765785.2432, "sum_bytes": 465528, "sum_tokens": 137812, "bpb": 2.373208, "ppl_ref": 258.9768, "sec": 571.7}

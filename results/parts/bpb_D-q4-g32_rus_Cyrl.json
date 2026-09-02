@@ -1,0 +1,1 @@
+{"arm": "D-q4-g32", "flores_code": "rus_Cyrl", "n_sents": 1012, "sum_nll_nats": 133153.7386, "sum_bytes": 260342, "sum_tokens": 40480, "bpb": 0.737876, "ppl_ref": 26.826, "sec": 161.6}

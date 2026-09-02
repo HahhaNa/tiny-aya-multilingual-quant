@@ -1,1 +1,1 @@
-{"arm": "A-bf16", "flores_code": "spa_Latn", "n_sents": 1012, "sum_nll_nats": 139260.835, "sum_bytes": 159885, "sum_tokens": 36067, "bpb": 1.256596, "ppl_ref": 47.5209, "sec": 242.6}
+{"arm": "A-bf16", "flores_code": "spa_Latn", "n_sents": 1012, "sum_nll_nats": 139260.835, "sum_bytes": 159885, "sum_tokens": 36067, "bpb": 1.256596, "ppl_ref": 47.5209, "sec": 167.3}

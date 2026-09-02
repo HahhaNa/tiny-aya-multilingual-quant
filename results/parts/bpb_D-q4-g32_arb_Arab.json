@@ -1,0 +1,1 @@
+{"arm": "D-q4-g32", "flores_code": "arb_Arab", "n_sents": 1012, "sum_nll_nats": 154466.4772, "sum_bytes": 211263, "sum_tokens": 35878, "bpb": 1.054837, "ppl_ref": 74.0933, "sec": 143.0}
