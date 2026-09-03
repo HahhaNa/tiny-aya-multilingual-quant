@@ -248,6 +248,33 @@ The weight-space measurement had already falsified the premise behind the hypoth
 quantization error is flat at 0.093 across every language and frequency, so whatever arm E does for
 Yoruba, it is not by fixing embedding rows that were quantized worse.
 
+## The damage is a tail event, not a shift
+
+![collapse](figures/07_collapse.png)
+
+This was found after the registered analysis was complete and is exploratory, but it reframes
+everything above. The median sentence loses **0.2 chrF++** to four bits. Almost nothing. But 2.3% of
+sentences lose at least twenty points, and those carry **45% of all degradation**. Collapse rate
+tracks resource tier: 0.8% for high resource languages, 1.0% for mid, **4.1% for low**, reaching
+7.5% for Burmese.
+
+The registered analysis compares means, which is the right test for a shift in central tendency and
+the wrong one for a change in how often something breaks.
+
+The mitigation acts almost entirely on that tail: **+15.3 chrF++ on collapsed sentences against
++0.17 on everything else**, with 69% of its benefit coming from 2.3% of the data. Per language the
+reduction in collapse rate excludes zero for Amharic and Swahili, two points each. Burmese, worst
+affected, does not improve.
+
+This explains three things that were puzzling. The wide intervals on H2, since a heavy-tailed effect
+has high variance in its mean. The absence of any fidelity signal, since 200 sentences at a 2 to 7%
+event rate gives five to fifteen events. And the gap between a 1.6% rise in bits per byte and an 8%
+drop in chrF++, since BPB averages over every token and dilutes rare collapses.
+
+What collapse looks like: degenerate repetition, refusal to translate, returning the English source
+untouched, or fluent output about something else entirely. Real examples in
+[`docs/failure-gallery.md`](docs/failure-gallery.md), or run them live with `python demo/compare.py`.
+
 ## Failures that automatic metrics miss
 
 The most interesting layer produced the least. After the metric was corrected, script drift,

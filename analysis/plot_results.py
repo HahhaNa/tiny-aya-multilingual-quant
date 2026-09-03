@@ -126,3 +126,42 @@ b2.set_title("The same five arms, measured two ways\nThe 30 point decline was th
 b2.legend(fontsize=8.5, frameon=False); tidy(b2)
 plt.tight_layout(); plt.savefig("figures/06_speed.png", dpi=170); plt.close()
 print("wrote figures 03 to 06")
+
+# ---------------- 07 damage is a tail event ----------------
+import numpy as np
+col = list(csv.DictReader(open("results/collapse.csv")))
+drops = json.load(open("results/per_sentence_drop.json"))
+fig, (c1, c2) = plt.subplots(1, 2, figsize=(13, 4.9))
+
+d = np.array(drops["drop"])
+c1.hist(d, bins=np.arange(-10, 70, 2), color=COOL, edgecolor="white", linewidth=.4)
+c1.axvline(20, color="#96382C", ls="--", lw=1.4)
+c1.text(21, c1.get_ylim()[1]*.62,
+        f"  {(d>=20).mean():.1%} of sentences\n  lose 20+ points\n  and carry 45%\n  of all degradation",
+        fontsize=9, color="#96382C", va="top")
+c1.axvline(float(np.median(d)), color=INK, lw=1)
+c1.text(float(np.median(d))-1.5, c1.get_ylim()[1]*.9, f"median {np.median(d):.1f}",
+        fontsize=9, color=INK, ha="right")
+c1.set_yscale("log"); c1.set_xlabel("chrF++ points lost to four bits, one sentence")
+c1.set_ylabel("Sentences, log scale")
+c1.set_title("Four bits does not degrade output evenly\nIt breaks a small number of sentences badly",
+             fontsize=11, loc="left")
+tidy(c1)
+
+col.sort(key=lambda r: -float(r["collapse_rate_4bit"]))
+ys = np.arange(len(col)); w = .38
+c2.barh(ys+w/2, [float(r["collapse_rate_4bit"])*100 for r in col], w,
+        color=[COL[r["tier"]] for r in col], label="4-bit")
+c2.barh(ys-w/2, [float(r["collapse_rate_mitigated"])*100 for r in col], w,
+        color=[COL[r["tier"]] for r in col], alpha=.45, label="with 8-bit embedding")
+for i, r in enumerate(col):
+    if float(r["ci_low"]) > 0:
+        c2.text(float(r["collapse_rate_4bit"])*100+.25, ys[i], "*", fontsize=13,
+                color=INK, va="center")
+c2.set_yticks(ys); c2.set_yticklabels([r["name"] for r in col], fontsize=9)
+c2.set_xlabel("Percent of sentences that collapse")
+c2.set_title("Collapse rate by language\n* marks a reduction whose interval excludes zero",
+             fontsize=11, loc="left")
+c2.legend(fontsize=8.5, frameon=False, loc="upper right"); tidy(c2)
+plt.tight_layout(); plt.savefig("figures/07_collapse.png", dpi=170); plt.close()
+print("wrote figure 07")

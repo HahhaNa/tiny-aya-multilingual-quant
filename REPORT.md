@@ -235,6 +235,32 @@ The evidence in weight space in fact runs the other way. Since relative error is
 perturbation follows row norm, and English tokens carry the largest embedding norms in this
 vocabulary.
 
+### Damage is a tail event
+
+Found after all evaluation was complete, and exploratory rather than registered.
+
+The median sentence loses 0.2 chrF++ to four bits. But 2.3% of sentences lose at least twenty
+points and those account for 45% of all degradation. The collapse rate scales with resource tier:
+0.8% high, 1.0% mid, 4.1% low, and 7.5% for Burmese.
+
+The mitigation acts on that tail and almost nowhere else: +15.34 chrF++ on collapsed sentences
+against +0.17 on the rest, 69% of its total benefit concentrated in 2.3% of the data. The reduction
+in collapse rate has an interval excluding zero for Amharic and Swahili, two points each. Burmese,
+the worst affected language, does not improve.
+
+This accounts for three otherwise puzzling results. H2's wide intervals, because a heavy-tailed
+effect has high variance in its mean. The empty fidelity layer, because 200 sentences at a 2 to 7%
+event rate yields five to fifteen events. And the factor of five between a 1.6% rise in bits per
+byte and an 8% drop in chrF++, because BPB averages across every token and dilutes rare collapses.
+
+No registered hypothesis changes. H2 remains unsupported by the test it was registered against.
+What this adds is a mechanism, and a metric that should have been registered instead: collapse rate
+rather than mean degradation. Saying so after the fact is precisely why it is labelled post-hoc.
+
+Collapse takes four visible forms in the outputs: degenerate repetition, refusal to perform the
+translation, returning the English source unchanged, and fluent text about unrelated content.
+Examples in [`docs/failure-gallery.md`](docs/failure-gallery.md).
+
 ### Failures that automatic metrics miss
 
 The layer expected to be most revealing produced the least. After the metric was corrected, script

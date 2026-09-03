@@ -1,0 +1,10 @@
+flores_code,name,tier,collapse_rate_4bit,collapse_rate_mitigated,reduction_pp,ci_low,ci_high
+spa_Latn,Spanish,high,0.0,0.0,0.0,0.0,0.0
+rus_Cyrl,Russian,high,0.005,0.0,0.5,0.0,1.5
+cmn_Hant,Chinese (Traditional),high,0.02,0.02,0.0,0.0,0.0
+hin_Deva,Hindi,mid,0.015,0.005,1.0,0.0,2.5
+arb_Arab,Arabic,mid,0.005,0.005,0.0,-1.5,1.5
+swh_Latn,Swahili,low,0.03,0.01,2.0,0.5,4.0
+yor_Latn,Yoruba,low,0.025,0.01,1.5,0.0,3.5
+amh_Ethi,Amharic,low,0.035,0.015,2.0,0.5,4.0
+mya_Mymr,Burmese,low,0.075,0.07,0.5,-3.5,4.5

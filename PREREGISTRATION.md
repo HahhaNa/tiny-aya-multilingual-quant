@@ -207,3 +207,30 @@ quantization error in the network. `v_proj` has a median of 0.1020 in the deep l
 **Possible experiment:** an arm that keeps `k_proj` and `v_proj` at 8-bit. Those matrices are small, so
 the memory cost would be far below arm E's.
 **Optional**, ranked below the five registered arms, only if the day 7 review leaves room.
+
+### P3 · 2026-09-03 · Damage is a tail event, not a shift
+Found after all evaluation was complete, and reported as exploratory.
+
+The registered analysis compares means. That is the right test for a shift in central tendency and
+the wrong one for a change in how often something breaks. The per-sentence distribution says the
+second is what happens.
+
+Median chrF lost to four bits is **0.2 points**. But 2.3% of sentences lose at least 20 points, and
+those account for **45% of all degradation**. The collapse rate scales with resource tier: 0.8% for
+high resource languages, 1.0% for mid, **4.1% for low**, reaching 7.5% for Burmese.
+
+The mitigation acts almost entirely on that tail: +15.34 chrF on collapsed sentences against +0.17
+on everything else, with 69% of its total benefit coming from 2.3% of the data. Per language, the
+reduction in collapse rate has an interval excluding zero for Amharic and Swahili, 2.0 points each.
+Burmese does not improve, which matches its behaviour on the aggregate metrics.
+
+This explains three things that were puzzling under the registered analysis. The wide intervals on
+H2, since a heavy-tailed effect has high variance in its mean. The absence of any fidelity signal,
+since 200 sentences at a 2 to 7% event rate yields five to fifteen events. And the discrepancy
+between a 1.6% rise in bits per byte and an 8% drop in chrF++, since BPB averages over every token
+and dilutes rare collapses.
+
+**No registered hypothesis is revised.** H2 remains unsupported by the test it was registered
+against. What this adds is a mechanism and a metric that should have been registered instead:
+collapse rate rather than mean degradation. Stating that after the fact is exactly why it is
+labelled post-hoc.
