@@ -149,6 +149,132 @@ depth, reaching 0.1245 at layer 27 against roughly 0.092 for the MLP blocks. Tha
 mechanism with nothing to do with embeddings, recorded as a post-hoc note rather than folded into the
 registered hypotheses.
 
+
+## What you get, and what you pay
+
+Interleaved, 45 runs, medians with IQR, on mains power with the machine otherwise idle.
+
+| Arm | Weights | Decode tok/s | IQR | Roofline | Efficiency |
+| --- | --- | --- | --- | --- | --- |
+| A bf16 | 6.72 GB | 13.1 | 12.9 to 13.2 | 14.9 | 88% |
+| B 8-bit | 3.58 GB | 24.3 | 23.7 to 24.6 | 27.9 | 87% |
+| C 4-bit | 1.91 GB | 43.5 | 42.7 to 47.4 | 52.4 | 83% |
+| D 4-bit g32 | 2.11 GB | 40.3 | 39.0 to 40.8 | 47.4 | 85% |
+| E mitigation | 2.17 GB | 39.0 | 37.3 to 41.8 | 46.1 | 85% |
+
+Four bits buys 3.3 times the decode rate for a third of the memory. Kernel efficiency is flat at
+83 to 88% across every bit width, which settles the question the smoke test could not: the
+monotonic decline from 79% to 49% seen when the arms ran back to back was thermal, not
+dequantization overhead. Interleaving collapses the spread from 30 percentage points to 5. The
+registered check for a residual order effect finds none, so 90 seconds of cooldown was enough
+(`order_idx` coefficient −0.008 tok/s per run, 95% CI [−0.057, +0.041], p = 0.75).
+
+Quality, as within-language ΔBPB against bf16, four bits, 95% CI from a paired bootstrap over the
+1012 parallel sentences:
+
+| Language | Tier | ΔBPB | Language | Tier | ΔBPB |
+| --- | --- | --- | --- | --- | --- |
+| English | high | +0.39% | Arabic | mid | +1.45% |
+| Burmese | low | +0.58% | Hindi | mid | +1.60% |
+| Chinese | high | +0.99% | Swahili | low | +1.66% |
+| Russian | high | +1.35% | Yoruba | low | +1.94% |
+| Spanish | high | +1.43% | Amharic | low | +2.08% |
+
+Eight bits is lossless everywhere, low resource languages included: every language sits within
+±0.15%, inside the 0.3% noise floor established before the run.
+
+## Was the cost distributed unequally
+
+Yes for these ten languages, and the claim stops there.
+
+On translation into each language, four bits costs low resource languages 8.2% of their chrF++
+against 3.0% for high resource ones. The gap is 5.2 percentage points, 95% CI [−8.3, −2.2] from a
+paired bootstrap over sentences. Plain chrF, which drops the whitespace-dependent word bigrams,
+gives 4.6 points with 95% CI [−7.5, −1.6]. The conclusion does not depend on the metric.
+
+**But the registered test does not support H1.** The preregistered regression works at the language
+level, `Δ ~ tier + script + fertility + baseline`, and there are ten languages against six
+parameters. The `tier` coefficient is +0.95 with a 95% CI of [−0.45, +2.35], four residual degrees
+of freedom, adjusted R² negative. It cannot resolve an effect of this size, and that is a design
+flaw that was in the plan from the beginning rather than a property of the data.
+
+Both statements are true and they are not in tension. The sentence bootstrap says the gap among
+these particular languages is real. The language-level regression says ten languages cannot
+establish that it generalizes to low resource languages as a class. Reporting only the first would
+be overclaiming; reporting only the second would be hiding a real measurement.
+
+Two results survive that are worth more than the headline:
+
+**Writing system does nothing.** Latin scripts lose 1.35% of BPB, non-Latin 1.34%. Marchisio et al.
+found non-Latin scripts took roughly three times the damage at 8B to 103B. At 3.35B, on a model
+built for these languages, the effect is absent. The 2x2 design exists precisely to separate script
+from resource level, and it separates them.
+
+**Baseline scores are not the explanation.** The usual objection to any finding like this is
+regression to the mean, since low resource languages start lower. The correlation between relative
+degradation and baseline BPB is −0.13. The covariate was in the preregistration to defuse that
+objection, and the data defuses it independently.
+
+## Does keeping the embedding at 8-bit help
+
+Not enough to claim it.
+
+| Metric | Gap at 4-bit | Gap with 8-bit embedding | Shrinkage |
+| --- | --- | --- | --- |
+| ΔBPB, primary | +0.53 pp | +0.26 pp | 51%, 95% CI [40, 66] |
+| ΔchrF++, secondary | −5.23 pp | −3.99 pp | 24%, 95% CI [−50, 77] |
+
+The registered rule asked for a difference whose CI excludes zero and at least half the gap closed.
+On the primary metric both conditions are met, but by 1.2 percentage points, with an interval
+reaching down to 40%. On the secondary metric the difference is −1.24 points with a 95% CI of
+[−3.90, +1.44], which contains zero.
+
+**Declaring H2 supported here would mean choosing the metric that agrees.** The honest reading is
+that arm E helps selectively rather than generally: Yoruba recovers from −13.0% to −5.4% of chrF++,
+both intervals excluding zero, while Burmese gets marginally worse, −8.9% to −10.2%. Fourteen
+percent more memory buys a real improvement for some languages and nothing for others, and this
+experiment cannot say which in advance.
+
+The weight-space measurement had already falsified the premise behind the hypothesis. Relative
+quantization error is flat at 0.093 across every language and frequency, so whatever arm E does for
+Yoruba, it is not by fixing embedding rows that were quantized worse.
+
+## Failures that automatic metrics miss
+
+The most interesting layer produced the least. After the metric was corrected, script drift,
+language confusion and degenerate repetition give three intervals excluding zero across roughly
+fifty uncorrected tests, which is what chance produces. The one coherent pattern is Yoruba
+repetition, 0.5% at bf16, 3.5% at four bits with the interval excluding zero, 1.5% with arm E. It
+points the same way as the chrF++ result, and one result among fifty is not a finding.
+
+At n = 200 sentences per language this layer is underpowered for rates in the low single digits.
+That is a statement about the experiment, not about the model.
+
+An aside worth recording: the language detector covers seven of these nine languages. Amharic and
+Burmese are absent from a 75-language detector, which is the same inequality this project set out
+to measure, one layer further down the stack.
+
+## What checking the baseline caught
+
+Every failure proxy was run against bf16 first. An unquantized model should score near zero on any
+measure of collapse, so a high baseline means the instrument is broken rather than the model.
+
+Script drift flagged 44.5% of untouched Chinese output. The absolute threshold was counting proper
+nouns, since Chinese references legitimately contain 802.11n and TogiNet. Measured against each
+reference's own script share, the baseline falls to 6.0%.
+
+mlx-lm emitted its stop token as text in 5329 of 5400 generations, depressing every chrF++ score.
+Nothing followed the token, so stripping it is lossless.
+
+The bootstrap that rebuilds corpus chrF from per-sentence statistics used the wrong reference shape
+and returned zero-width confidence intervals. Aggregation is now asserted against `corpus_score` on
+every extraction.
+
+chrF++ adds whitespace-delimited word bigrams, which is meaningless for languages that do not
+separate words with spaces. It costs Chinese 6.7 points and Burmese 8.1 against plain chrF. Both
+metrics are reported. This is the same failure mode as perplexity: a metric carrying an unexamined
+assumption about how writing works.
+
 ## Measuring speed on a machine with no fan
 
 The first smoke test was run sequentially, A through E. Kernel efficiency against the memory
@@ -188,11 +314,26 @@ converted models to within 1.5%, and its 5.141 bits per weight for arm E matches
 
 ## Limitations
 
-One model, one machine, so nothing here generalizes on its own. No human evaluation, because ten
-native speakers were not available, which is why script fidelity is used as a cheap proxy and why
-Traditional Chinese is the only language spot checked by the author. FLORES is news and encyclopedic
-text and carries that domain bias. Resource tier is a coarse discretization. Speed numbers describe
-sustained performance on a fanless M3 Air, not an architectural ceiling.
+**Ten languages cannot support a claim about low resource languages as a class.** The registered
+regression has six parameters and ten observations. Every interval reported here that excludes zero
+comes from resampling sentences with the language set held fixed, which is the right frame for "what
+happened to these ten languages" and the wrong one for anything broader.
+
+**One model, one machine.** Nothing here generalizes on its own. The obvious next step is a second
+model at similar scale.
+
+**No human evaluation.** Ten native speakers were not available, so language fidelity stands in as a
+cheap proxy, and Traditional Chinese is the only language the author can spot check. The proxy is
+also underpowered at 200 sentences for rates in the low single digits.
+
+**The fidelity layer relies on tools with the same coverage gap.** The language detector supports
+seven of the nine target languages.
+
+**FLORES is news and encyclopedic text** and carries that domain bias. Resource tier is a coarse
+discretization, assigned in advance and never adjusted.
+
+**Speed figures describe sustained performance on a fanless M3 Air**, not an architectural ceiling.
+Efficiency against roofline is uniform across bit widths on this machine and may not be on others.
 
 ## Prior work
 
