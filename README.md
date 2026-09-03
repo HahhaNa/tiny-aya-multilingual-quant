@@ -2,6 +2,11 @@
 
 **What uniform 4-bit quantization costs each of ten languages on a fanless laptop, and whether a small change to the recipe can pay some of it back.**
 
+![headline](figures/05_memory_vs_quality.png)
+
+Full write-up in [`REPORT.md`](REPORT.md). Method and the measurement checks in
+[`METHODOLOGY.md`](METHODOLOGY.md). `make reproduce` runs the pipeline end to end.
+
 ## The question
 
 [Tiny Aya](https://huggingface.co/CohereLabs/tiny-aya-global) is a 3.35B multilingual model from
@@ -169,6 +174,8 @@ dequantization overhead. Interleaving collapses the spread from 30 percentage po
 registered check for a residual order effect finds none, so 90 seconds of cooldown was enough
 (`order_idx` coefficient −0.008 tok/s per run, 95% CI [−0.057, +0.041], p = 0.75).
 
+![speed](figures/06_speed.png)
+
 Quality, as within-language ΔBPB against bf16, four bits, 95% CI from a paired bootstrap over the
 1012 parallel sentences:
 
@@ -179,6 +186,8 @@ Quality, as within-language ΔBPB against bf16, four bits, 95% CI from a paired 
 | Chinese | high | +0.99% | Swahili | low | +1.66% |
 | Russian | high | +1.35% | Yoruba | low | +1.94% |
 | Spanish | high | +1.43% | Amharic | low | +2.08% |
+
+![delta bpb](figures/03_delta_bpb.png)
 
 Eight bits is lossless everywhere, low resource languages included: every language sits within
 ±0.15%, inside the 0.3% noise floor established before the run.
@@ -259,6 +268,8 @@ to measure, one layer further down the stack.
 Every failure proxy was run against bf16 first. An unquantized model should score near zero on any
 measure of collapse, so a high baseline means the instrument is broken rather than the model.
 
+![script drift](figures/04_script_drift.png)
+
 Script drift flagged 44.5% of untouched Chinese output. The absolute threshold was counting proper
 nouns, since Chinese references legitimately contain 802.11n and TogiNet. Measured against each
 reference's own script share, the baseline falls to 6.0%.
@@ -295,19 +306,18 @@ below 0.3% is treated as noise. Both checks are in [`METHODOLOGY.md`](METHODOLOG
 
 ## Reproducing
 
-```bash
-uv venv --python 3.12 && source .venv/bin/activate
-uv pip install mlx-lm huggingface_hub sacrebleu datasets pandas matplotlib scipy statsmodels lingua-language-detector
-hf auth login          # accept the licences on the two gated pages first
+Accept both licences while signed in to Hugging Face, then:
 
-python convert/gate_check.py     # confirms mlx-lm supports the cohere2 architecture
-python convert/check_tie.py      # confirms tied embeddings, which arm E depends on
-bash   convert/make_arms.sh      # arms A to D
-python convert/arm_e.py          # arm E, custom quant predicate
-python eval/prepare_data.py      # FLORES+ parallel corpus and fertility
-python analysis/weight_error.py  # L0, needs no inference
-python eval/bpb.py               # L1, resumable per arm and language
+```bash
+make setup                       # venv and dependencies
+hf auth login
+make reproduce                   # architecture checks, five arms, corpus, L0, L1, figures
+make translate quality stats     # generation, scoring, the registered tests
 ```
+
+`reproduce` takes about four hours on an M3 Air. `translate` takes about eight more and is the only
+step that needs an otherwise idle machine, along with `speed`. Every stage skips work already on
+disk, so an interrupted run continues rather than restarting.
 
 `analysis/param_budget.py` derives the arm sizes from the config alone. Its predictions match the
 converted models to within 1.5%, and its 5.141 bits per weight for arm E matches what mlx-lm reports.
