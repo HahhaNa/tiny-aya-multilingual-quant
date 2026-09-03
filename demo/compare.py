@@ -1,66 +1,106 @@
-"""Side by side: the same prompt through bf16, four bits, and the mitigation.
+"""Side by side: the same prompt through 4-bit and through the 8-bit-embedding mitigation.
 
-Live, so the throughput and memory numbers are measured on the spot rather than read from a table.
-The default sentence is one the metric picked out in demo/find_examples.py, not one chosen by eye.
+The sentence is not chosen for effect. It is FLORES devtest item 181, one of 11 of 200 Yoruba
+sentences where four bits costs more than 12 chrF++ and the mitigation recovers more than 10.
+The demo prints that denominator, because a single dramatic failure is an anecdote until you say
+how often it happens.
+
+Usage:  python demo/compare.py [--arms C,E] [--idx 181] [--lang yor_Latn]
 """
-import json, time, argparse, gc, sys
+import argparse, json, re, sys, time, gc, shutil
 import mlx.core as mx
 from mlx_lm import load, stream_generate
 
-ARMS = [("A-bf16", "bf16", "6.72 GB"),
-        ("C-q4-g64", "4-bit", "1.91 GB"),
-        ("E-q4-emb8", "4-bit + 8-bit embedding", "2.17 GB")]
-BOLD, DIM, RED, GRN, CYN, OFF = "\033[1m", "\033[2m", "\033[31m", "\033[32m", "\033[36m", "\033[0m"
+SPECIAL = re.compile(r"<\|[^|]*\|>")
+NAMES = {"A-bf16":"bf16  6.7 GB", "C-q4-g64":"4-bit  1.9 GB", "E-q4-emb8":"4-bit + 8-bit embedding  2.2 GB"}
+CSI = "\033["
+def at(r, c): sys.stdout.write(f"{CSI}{r};{c}H")
+def clear():  sys.stdout.write(f"{CSI}2J{CSI}H")
+def dim(s):   return f"{CSI}90m{s}{CSI}0m"
+def bold(s):  return f"{CSI}1m{s}{CSI}0m"
+def warm(s):  return f"{CSI}33m{s}{CSI}0m"
+def cool(s):  return f"{CSI}36m{s}{CSI}0m"
+
+def wrap(text, w):
+    out, line = [], ""
+    for word in text.split(" "):
+        if len(line) + len(word) + 1 > w:
+            out.append(line); line = word
+        else:
+            line = (line + " " + word).strip()
+    out.append(line)
+    return out
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--case", type=int, default=0, help="index into demo/examples.json")
-    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--arms", default="C-q4-g64,E-q4-emb8")
+    ap.add_argument("--idx", type=int, default=181)
+    ap.add_argument("--lang", default="yor_Latn")
     a = ap.parse_args()
-    cases = json.load(open("demo/examples.json"))
-    if a.list:
-        for i, c in enumerate(cases):
-            print(f"  {i:2}  {c['lang']:10} chrF {c['A']:.0f} -> {c['C']:.0f} -> {c['E']:.0f}   {c['src'][:60]}")
-        return
-    c = cases[a.case]
-    lang = {"swh_Latn":"Swahili","yor_Latn":"Yoruba","amh_Ethi":"Amharic","mya_Mymr":"Burmese",
-            "rus_Cyrl":"Russian","hin_Deva":"Hindi","arb_Arab":"Arabic","cmn_Hant":"Chinese (Traditional)",
-            "spa_Latn":"Spanish"}[c["lang"]]
+    arms = a.arms.split(",")
 
-    print(f"\n{BOLD}Translate into {lang}{OFF}")
-    print(f"{DIM}{c['src']}{OFF}\n")
-    print(f"{DIM}reference: {c['ref'][:110]}{OFF}\n")
-    print("=" * 96)
+    meta = {r["flores_code"]: r for r in __import__("csv").DictReader(open("data/lang_meta.csv"))}
+    row = [json.loads(l) for l in open("data/flores_10lang.jsonl", encoding="utf-8")][a.idx]
+    src, ref = row["eng_Latn"], row[a.lang]
+    lang_name = meta[a.lang]["name"]
 
-    for arm, label, size in ARMS:
+    W = min(shutil.get_terminal_size((120, 40)).columns, 160)
+    col = (W - 6) // 2
+
+    clear()
+    print(bold("  Tiny Aya 3.35B on an M3 MacBook Air") + dim("   ·   same prompt, two quantizations"))
+    print(dim(f"  translating English into {lang_name}   ·   FLORES devtest item {a.idx}"))
+    print()
+    print(dim("  EN   ") + src)
+    for i, l in enumerate(wrap(ref, W - 9)):
+        print(dim("  ref  " if i == 0 else "       ") + dim(l))
+    print()
+    top = len(wrap(ref, W - 9)) + 6
+    for i, arm in enumerate(arms):
+        at(top, 3 + i * (col + 3)); sys.stdout.write((cool if i == 0 else warm)(bold(NAMES[arm])))
+    sys.stdout.flush()
+
+    results = {}
+    for i, arm in enumerate(arms):
+        c0 = 3 + i * (col + 3)
+        at(top + 1, c0); sys.stdout.write(dim("loading…")); sys.stdout.flush()
         model, tok = load(f"models/{arm}")
-        prompt = tok.apply_chat_template(
-            [{"role":"user","content":
-              f"Translate the following English sentence into {lang}. "
-              f"Reply with the translation only, no explanation.\n\n{c['src']}"}],
-            add_generation_prompt=True, tokenize=False)
+        at(top + 1, c0); sys.stdout.write(" " * col)
+        msgs = [{"role": "user", "content":
+                 f"Translate the following English sentence into {lang_name}. "
+                 f"Reply with the translation only, no explanation.\n\n{src}"}]
+        text = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=False)
         mx.clear_cache()
-        # peak_memory is a process-wide high-water mark, so it has to be reset per arm or every
-        # arm reports whatever the largest one used.
+        # MLX tracks a process-wide high-water mark that clear_cache does not reset, so without
+        # this the second arm inherits the first one's peak and both report the same number.
         mx.reset_peak_memory()
-        print(f"\n{BOLD}{label}{OFF}  {DIM}{size}{OFF}")
-        sys.stdout.write("  ")
-        t0 = time.time(); last = None; n = 0
-        for r in stream_generate(model, tok, prompt, max_tokens=400):
-            sys.stdout.write(r.text.replace("<|END_RESPONSE|>", "")); sys.stdout.flush()
-            last = r; n += 1
-        dt = time.time() - t0
-        col = GRN if arm != "C-q4-g64" else RED
-        peak = mx.get_peak_memory() / 1024**3
-        print(f"\n  {col}{last.generation_tps:.1f} tok/s{OFF}   {DIM}peak {peak:.2f} GB"
-              f"   {n} tokens in {dt:.1f}s{OFF}")
-        del model, tok; gc.collect(); mx.clear_cache()
+        acc, last, t0 = "", None, time.time()
+        for resp in stream_generate(model, tok, text, max_tokens=200):
+            acc += resp.text; last = resp
+            body = SPECIAL.sub("", acc)
+            for r, l in enumerate(wrap(body, col)[:9]):
+                at(top + 3 + r, c0); sys.stdout.write(l.ljust(col))
+            at(top + 1, c0)
+            sys.stdout.write(dim(f"{resp.generation_tps:5.1f} tok/s   {resp.peak_memory:4.2f} GB peak").ljust(col + 12))
+            sys.stdout.flush()
+        results[arm] = dict(text=SPECIAL.sub("", acc).strip(),
+                            tps=last.generation_tps, peak=last.peak_memory, secs=time.time() - t0)
+        del model, tok; gc.collect(); mx.clear_cache(); mx.reset_peak_memory()
 
-    print("\n" + "=" * 96)
-    print(f"{DIM}stored chrF for this sentence: bf16 {c['A']:.0f}, four bits {c['C']:.0f}, "
-          f"mitigation {c['E']:.0f}{OFF}")
-    print(f"{DIM}This sentence is one of the 2.3% that collapse. Median damage across all 1800 "
-          f"is 0.2 chrF.{OFF}\n")
+    import sacrebleu
+    m = sacrebleu.CHRF(word_order=2)
+    at(top + 13, 1)
+    print()
+    for i, arm in enumerate(arms):
+        r = results[arm]
+        sc = m.sentence_score(r["text"], [ref]).score
+        paint = cool if i == 0 else warm
+        print(f"  {paint(NAMES[arm]):<52}  chrF++ {bold(f'{sc:5.1f}')}   "
+              f"{r['tps']:5.1f} tok/s   {r['peak']:.2f} GB")
+    print()
+    print(dim("  Item 181 is one of 11 of 200 Yoruba sentences where four bits costs more than 12 chrF++"))
+    print(dim("  and the mitigation recovers more than 10. Across all 200, four bits costs 13.0% of chrF++"))
+    print(dim("  and the mitigation leaves 5.4%. Both intervals exclude zero; see REPORT.md."))
 
 if __name__ == "__main__":
     main()

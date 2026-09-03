@@ -275,6 +275,17 @@ What collapse looks like: degenerate repetition, refusal to translate, returning
 untouched, or fluent output about something else entirely. Real examples in
 [`docs/failure-gallery.md`](docs/failure-gallery.md), or run them live with `python demo/compare.py`.
 
+## What the failure looks like
+
+![demo case](figures/07_demo_case.png)
+
+`python demo/compare.py` runs this live, side by side, with tokens per second and peak memory
+updating as each model generates. It takes about forty seconds.
+
+The sentence was not chosen for effect. It is one of 11 of 200 Yoruba sentences where four bits
+costs more than 12 chrF++ and the mitigation recovers more than 10, and the demo prints that
+denominator on screen. A single dramatic failure is an anecdote until you say how often it happens.
+
 ## Failures that automatic metrics miss
 
 The most interesting layer produced the least. After the metric was corrected, script drift,
