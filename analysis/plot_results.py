@@ -1,68 +1,128 @@
-"""Delta BPB by language, and the memory against fairness tradeoff."""
-import csv, numpy as np, matplotlib
+"""Figures 03 to 06. English labels throughout; cool for high resource, warm for low."""
+import csv, json, math, re, collections
+import numpy as np, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-EN={"eng_Latn":"English","spa_Latn":"Spanish","rus_Cyrl":"Russian","cmn_Hant":"Chinese (Trad)",
-    "hin_Deva":"Hindi","arb_Arab":"Arabic","swh_Latn":"Swahili","yor_Latn":"Yoruba",
-    "amh_Ethi":"Amharic","mya_Mymr":"Burmese"}
-COL={"high":"#22607F","mid":"#7A8B87","low":"#A6650F"}
-GB={"B-q8-g64":3.58,"C-q4-g64":1.91,"D-q4-g32":2.11,"E-q4-emb8":2.17}
-TITLE={"C-q4-g64":"C · 4-bit, g=64","D-q4-g32":"D · 4-bit, g=32","E-q4-emb8":"E · 4-bit + 8-bit embedding"}
+COOL, WARM, MID, INK, MUTE = "#22607F", "#A6650F", "#7A8B87", "#14201D", "#55635F"
+COL = {"high": COOL, "mid": MID, "low": WARM}
+M = {r["flores_code"]: r for r in csv.DictReader(open("data/lang_meta.csv"))}
+GB = {"A-bf16":6.72,"B-q8-g64":3.58,"C-q4-g64":1.91,"D-q4-g32":2.11,"E-q4-emb8":2.17}
+SHORT = {"A-bf16":"bf16","B-q8-g64":"8-bit","C-q4-g64":"4-bit","D-q4-g32":"4-bit g32","E-q4-emb8":"4-bit\n+8-bit emb"}
+def tidy(ax):
+    ax.spines[["top","right"]].set_visible(False); ax.grid(alpha=.22)
 
-R=list(csv.DictReader(open("results/delta_bpb.csv")))
-d={(r["arm"],r["flores_code"]):r for r in R}
-LANGS=["eng_Latn","spa_Latn","rus_Cyrl","cmn_Hant","hin_Deva","arb_Arab","swh_Latn","yor_Latn","amh_Ethi","mya_Mymr"]
-order=sorted(LANGS,key=lambda L:float(d[("C-q4-g64",L)]["rel_delta_pct"]))
+# ---------------- 03 delta BPB ----------------
+d = [r for r in csv.DictReader(open("results/delta_bpb.csv")) if r["arm"]=="C-q4-g64"]
+d.sort(key=lambda r: float(r["rel_delta_pct"]))
+fig, ax = plt.subplots(figsize=(8.6,4.8))
+y = np.arange(len(d))
+v = [float(r["rel_delta_pct"]) for r in d]
+err = [[v[i]-float(r["ci_low"]) for i,r in enumerate(d)], [float(r["ci_high"])-v[i] for i,r in enumerate(d)]]
+ax.barh(y, v, color=[COL[r["tier"]] for r in d], height=.66)
+ax.errorbar(v, y, xerr=err, fmt="none", ecolor=INK, elinewidth=1.1, capsize=3)
+ax.axvline(0.30, color=MUTE, ls=":", lw=1.2)
+ax.text(0.305, len(d)-0.4, " noise floor", fontsize=8, color=MUTE, va="center")
+ax.set_yticks(y); ax.set_yticklabels([M[r["flores_code"]]["name"] for r in d], fontsize=9)
+ax.set_xlabel("Increase in bits per byte at 4-bit, percent of the bf16 value")
+ax.set_title("Likelihood cost of four bits, by language\n"
+             "Ordered by size of the effect, not by resource tier", fontsize=11, loc="left")
+h = [plt.Rectangle((0,0),1,1,color=COL[t]) for t in ["high","mid","low"]]
+ax.legend(h, ["high resource","mid","low resource"], fontsize=8.5, frameon=False, loc="lower right")
+tidy(ax); plt.tight_layout(); plt.savefig("figures/03_delta_bpb.png", dpi=170); plt.close()
 
-fig,axes=plt.subplots(1,3,figsize=(16,5.4),sharey=True)
-for ax,arm in zip(axes,["C-q4-g64","D-q4-g32","E-q4-emb8"]):
-    y=np.arange(len(order))
-    v=[float(d[(arm,L)]["rel_delta_pct"]) for L in order]
-    lo=[v[i]-float(d[(arm,L)]["ci_low"]) for i,L in enumerate(order)]
-    hi=[float(d[(arm,L)]["ci_high"])-v[i] for i,L in enumerate(order)]
-    c=[COL[d[(arm,L)]["tier"]] for L in order]
-    ax.barh(y,v,color=c,height=.66)
-    ax.errorbar(v,y,xerr=[lo,hi],fmt="none",ecolor="#14201D",elinewidth=1.1,capsize=3)
-    ax.axvline(0,color="#14201D",lw=1)
-    ax.axvspan(-0.3,0.3,color="#8A9793",alpha=.16,zorder=0)
-    ax.set_yticks(y); ax.set_yticklabels([EN[L] for L in order],fontsize=9.5)
-    ax.set_xlim(-0.55,2.45); ax.set_xlabel("Relative ΔBPB against bf16 (%)")
-    ax.set_title(f"{TITLE[arm]}\n{GB[arm]} GB", fontsize=11, loc="left")
-    ax.spines[["top","right"]].set_visible(False); ax.grid(axis="x",alpha=.22)
-axes[0].text(0.32,-0.75,"shaded band = numerical noise floor",fontsize=8.5,color="#55635F")
-h=[plt.Rectangle((0,0),1,1,color=COL[t]) for t in ["high","mid","low"]]
-axes[2].legend(h,["high resource","mid","low resource"],fontsize=9,frameon=False,loc="lower right")
-plt.tight_layout(); plt.savefig("figures/03_delta_bpb.png",dpi=170); plt.close()
+# ---------------- 05 headline: memory against quality, by tier ----------------
+ch = {(r["arm"], r["flores_code"]): float(r["rel_delta_chrfpp_pct"])
+      for r in csv.DictReader(open("results/chrf_delta.csv"))}
+LANGS = [L for L in M if L != "eng_Latn"]
+HI = [L for L in LANGS if M[L]["tier"]=="high"]; LO = [L for L in LANGS if M[L]["tier"]=="low"]
+arms = ["A-bf16","C-q4-g64","E-q4-emb8"]
+hi = [0.0] + [np.mean([ch[(a,L)] for L in HI]) for a in arms[1:]]
+lo = [0.0] + [np.mean([ch[(a,L)] for L in LO]) for a in arms[1:]]
+x  = [GB[a] for a in arms]
 
-# ---- memory against fairness ----
-G={r["arm"]:r for r in csv.DictReader(open("results/fairness_gap.csv"))}
-fig,(ax1,ax2)=plt.subplots(1,2,figsize=(13,5.2))
-arms=["B-q8-g64","C-q4-g64","D-q4-g32","E-q4-emb8"]
-lab={"B-q8-g64":"B  8-bit","C-q4-g64":"C  4-bit g64","D-q4-g32":"D  4-bit g32","E-q4-emb8":"E  4-bit + 8-bit emb"}
-x=[GB[a] for a in arms]; y=[float(G[a]["gap"]) for a in arms]
-el=[y[i]-float(G[a]["gap_ci_low"]) for i,a in enumerate(arms)]
-eh=[float(G[a]["gap_ci_high"])-y[i] for i,a in enumerate(arms)]
-ax1.errorbar(x,y,yerr=[el,eh],fmt="o",ms=9,color="#22607F",ecolor="#14201D",
-             capsize=4,elinewidth=1.4,linestyle="none")
-for a,xi,yi in zip(arms,x,y):
-    ax1.annotate(lab[a],(xi,yi),textcoords="offset points",xytext=(9,6),fontsize=9.5)
-ax1.annotate("",xy=(GB["E-q4-emb8"],float(G["E-q4-emb8"]["gap"])),
-             xytext=(GB["C-q4-g64"],float(G["C-q4-g64"]["gap"])),
-             arrowprops=dict(arrowstyle="->",color="#A6650F",lw=1.8))
-ax1.text(2.02,0.40,"+14% memory\ncloses half the gap",fontsize=9,color="#A6650F")
-ax1.axhline(0,color="#14201D",lw=1,ls="--")
-ax1.set_xlim(1.6,4.0); ax1.set_xlabel("Model size on disk (GB)")
-ax1.set_ylabel("Fairness gap (percentage points)")
-ax1.set_title("Cost of the gap, and what it takes to close it\nGap = mean low resource ΔBPB minus mean high resource",fontsize=11,loc="left")
+fig, (a1, a2) = plt.subplots(1, 2, figsize=(13,5.2), gridspec_kw={"width_ratios":[1.25,1]})
+a1.plot(x, hi, "o-", color=COOL, lw=2, ms=9, label="high resource mean")
+a1.plot(x, lo, "o-", color=WARM, lw=2, ms=9, label="low resource mean")
+# The two 4-bit arms differ by 0.26 GB, so their labels are placed by hand to avoid collision.
+place = {0: (-6, 14, "right"), 1: (-10, -18, "right"), 2: (10, -18, "left")}
+for i, a in enumerate(arms):
+    dx, dy, ha = place[i]
+    a1.annotate(SHORT[a].replace("\n", " "), (x[i], lo[i]), textcoords="offset points",
+                xytext=(dx, dy), ha=ha, fontsize=9, color=INK)
+    if i:
+        a1.plot([x[i], x[i]], [hi[i], lo[i]], color=MUTE, lw=1, ls="--")
+        a1.annotate(f"{lo[i]-hi[i]:+.1f} pp", (x[i], (hi[i]+lo[i])/2), textcoords="offset points",
+                    xytext=(8 if i == 2 else -8, 0), ha="left" if i == 2 else "right",
+                    fontsize=9, color=MUTE)
+a1.axhline(0, color=MUTE, lw=1)
+a1.set_xlim(1.2, 7.6); a1.set_ylim(-9.6, 1.4)
+a1.set_xlabel("Model weights on disk, GB"); a1.set_ylabel("Change in chrF++, percent")
+a1.set_title("Four bits costs low resource languages more,\nand keeping the embedding at 8-bit does not reliably fix it",
+             fontsize=11, loc="left")
+a1.legend(fontsize=9, frameon=False, loc="lower right"); tidy(a1)
 
-ax2.bar(range(4),[float(G[a]["mean_delta_high"]) for a in arms],width=.38,label="high resource",color="#22607F")
-ax2.bar([i+.4 for i in range(4)],[float(G[a]["mean_delta_low"]) for a in arms],width=.38,label="low resource",color="#A6650F")
-ax2.set_xticks([i+.2 for i in range(4)]); ax2.set_xticklabels([lab[a] for a in arms],fontsize=9,rotation=12)
-ax2.axhspan(-0.3,0.3,color="#8A9793",alpha=.16,zorder=0)
-ax2.set_ylabel("Mean relative ΔBPB (%)")
-ax2.set_title("Arm D lowers degradation overall but widens the gap\nArm E is the only one that narrows it",fontsize=11,loc="left")
-ax2.legend(fontsize=9,frameon=False)
-for a in (ax1,ax2): a.spines[["top","right"]].set_visible(False); a.grid(alpha=.22)
-plt.tight_layout(); plt.savefig("figures/05_memory_vs_quality.png",dpi=170)
-print("-> figures/03_delta_bpb.png, figures/05_memory_vs_quality.png")
+g = list(csv.DictReader(open("results/fairness_gap.csv")))
+order = ["B-q8-g64","C-q4-g64","D-q4-g32","E-q4-emb8"]
+g = sorted(g, key=lambda r: order.index(r["arm"]))
+xs = np.arange(len(g)); gv = [float(r["gap"]) for r in g]
+ge = [[gv[i]-float(r["gap_ci_low"]) for i,r in enumerate(g)],
+      [float(r["gap_ci_high"])-gv[i] for i,r in enumerate(g)]]
+a2.bar(xs, gv, color=[COOL if r["arm"]=="B-q8-g64" else WARM for r in g], width=.6)
+a2.errorbar(xs, gv, yerr=ge, fmt="none", ecolor=INK, elinewidth=1.2, capsize=4)
+a2.axhline(0, color=MUTE, lw=1)
+a2.set_xticks(xs); a2.set_xticklabels([SHORT[r["arm"]].replace("\n"," ") for r in g], fontsize=8.5)
+a2.set_ylabel("Fairness gap in bits per byte, percentage points")
+a2.set_title("Gap on the primary metric, with intervals\nGap means low resource minus high resource degradation",
+             fontsize=11, loc="left")
+tidy(a2); plt.tight_layout(); plt.savefig("figures/05_memory_vs_quality.png", dpi=170); plt.close()
+
+# ---------------- 04 the metric that had to be fixed ----------------
+fid = {(r["arm"], r["flores_code"]): r for r in csv.DictReader(open("results/fidelity.csv"))}
+before = {"spa_Latn":0.0,"rus_Cyrl":2.0,"cmn_Hant":44.5,"hin_Deva":5.5,"arb_Arab":1.0,
+          "swh_Latn":0.0,"yor_Latn":0.0,"amh_Ethi":4.0,"mya_Mymr":19.5}
+order = sorted(LANGS, key=lambda L: -before[L])
+fig, ax = plt.subplots(figsize=(9.4,4.6))
+w = .38; xs = np.arange(len(order))
+ax.bar(xs-w/2, [before[L] for L in order], w, color="#96382C", label="absolute threshold")
+ax.bar(xs+w/2, [float(fid[("A-bf16",L)]["script_drift_rate"])*100 for L in order], w,
+       color=COOL, label="measured against the reference")
+ax.set_xticks(xs); ax.set_xticklabels([M[L]["name"] for L in order], rotation=32, ha="right", fontsize=8.5)
+ax.set_ylabel("Percent of bf16 output flagged as script drift")
+ax.set_title("Checking a failure metric against the unquantized baseline\n"
+             "bf16 is not broken, so 44.5% meant the instrument was", fontsize=11, loc="left")
+ax.legend(fontsize=9, frameon=False); tidy(ax)
+plt.tight_layout(); plt.savefig("figures/04_script_drift.png", dpi=170); plt.close()
+
+# ---------------- 06 speed ----------------
+sp = list(csv.DictReader(open("results/speed.csv")))
+ARMS = ["A-bf16","B-q8-g64","C-q4-g64","D-q4-g32","E-q4-emb8"]
+seq = {"A-bf16":.79,"B-q8-g64":.72,"C-q4-g64":.56,"D-q4-g32":.51,"E-q4-emb8":.49}
+fig, (b1,b2) = plt.subplots(1,2, figsize=(13,4.9))
+med = [np.median([float(r["decode_tps"]) for r in sp if r["arm"]==a]) for a in ARMS]
+q1  = [np.percentile([float(r["decode_tps"]) for r in sp if r["arm"]==a],25) for a in ARMS]
+q3  = [np.percentile([float(r["decode_tps"]) for r in sp if r["arm"]==a],75) for a in ARMS]
+ceil= [100/GB[a] for a in ARMS]
+xs = np.arange(len(ARMS))
+b1.bar(xs, ceil, .62, color="#DCEAF1", label="roofline from memory bandwidth")
+b1.bar(xs, med, .62, color=COOL, label="measured median")
+b1.errorbar(xs, med, yerr=[np.array(med)-q1, np.array(q3)-np.array(med)],
+            fmt="none", ecolor=INK, elinewidth=1.2, capsize=4)
+for i,a in enumerate(ARMS):  # above the roofline bar, clear of the error bars
+    b1.text(i, ceil[i]+1.0, f"{med[i]/ceil[i]:.0%}", ha="center", fontsize=9, color=INK)
+b1.set_ylim(0, 58)
+b1.set_xticks(xs); b1.set_xticklabels([SHORT[a] for a in ARMS], fontsize=8.5)
+b1.set_ylabel("Decode tokens per second")
+b1.set_title("Measured against the bandwidth ceiling\nLabels are kernel efficiency", fontsize=11, loc="left")
+b1.legend(fontsize=8.5, frameon=False); tidy(b1)
+
+b2.plot(xs, [seq[a]*100 for a in ARMS], "s--", color="#96382C", ms=8, label="sequential, arms back to back")
+b2.plot(xs, [med[i]/ceil[i]*100 for i in range(len(ARMS))], "o-", color=COOL, ms=8,
+        label="interleaved, 90 s cooldown")
+b2.set_xticks(xs); b2.set_xticklabels([SHORT[a] for a in ARMS], fontsize=8.5)
+b2.set_ylim(40,100); b2.set_ylabel("Kernel efficiency, percent of roofline")
+b2.set_title("The same five arms, measured two ways\nThe 30 point decline was thermal, not dequantization",
+             fontsize=11, loc="left")
+b2.legend(fontsize=8.5, frameon=False); tidy(b2)
+plt.tight_layout(); plt.savefig("figures/06_speed.png", dpi=170); plt.close()
+print("wrote figures 03 to 06")
